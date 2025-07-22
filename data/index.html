@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 모니터링 대시보드</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; min-height: 100vh; padding: 20px; }
+        .dashboard-container { max-width: 1400px; margin: 0 auto; display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+        .header { grid-column: 1 / -1; text-align: center; padding: 20px; background: rgba(255, 255, 255, 0.1); border-radius: 15px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; background: linear-gradient(45deg, #ff6b6b, #4ecdc4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .widget { background: rgba(255, 255, 255, 0.1); border-radius: 15px; padding: 20px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .widget:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); }
+        .widget h3 { margin-bottom: 15px; font-size: 1.3em; border-bottom: 2px solid rgba(255, 255, 255, 0.3); padding-bottom: 10px; }
+        .metric { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
+        .metric-value { font-size: 1.5em; font-weight: bold; }
+        .metric-good { color: #4ade80; } .metric-warning { color: #fbbf24; } .metric-danger { color: #f87171; }
+        .chart-container { position: relative; height: 300px; margin-top: 15px; }
+        .status-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-healthy { background-color: #4ade80; } .status-warning { background-color: #fbbf24; } .status-error { background-color: #f87171; }
+        .server-list, .alerts-container { list-style: none; padding: 0; max-height: 200px; overflow-y: auto; }
+        .server-item, .alert-box { padding: 10px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
+        .server-item { display: flex; justify-content: space-between; align-items: center; }
+        .alert-box { border-left: 4px solid; }
+        .alert-box.info { border-color: #3b82f6; } .alert-box.warning { border-color: #fbbf24; } .alert-box.error { border-color: #f87171; }
+        .controls { display: flex; gap: 10px; margin-bottom: 15px; }
+        .control-btn { padding: 8px 16px; background: rgba(255, 255, 255, 0.2); border: none; border-radius: 5px; color: white; cursor: pointer; transition: background 0.3s ease; }
+        .control-btn:hover { background: rgba(255, 255, 255, 0.3); }
+        .control-btn.active { background: #4ade80; }
+        .logs-container { height: 200px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 10px; font-family: 'Courier New', monospace; font-size: 0.9em; }
+        .log-entry { margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>🚀 실시간 모니터링 대시보드</h1>
+            <p>마이크로서비스 클러스터 통합 모니터링</p>
+            <div style="margin-top: 10px;">
+                <span id="current-time"></span> | <span id="uptime">Uptime: 00:00:00</span>
+            </div>
+        </div>
+
+        <div class="widget">
+            <h3>🎯 시스템 전체 상태</h3>
+            <div class="controls">
+                <button id="toggle-monitoring-btn" class="control-btn active">모니터링 ON</button>
+                <button id="refresh-btn" class="control-btn">새로고침</button>
+                <button id="reset-stats-btn" class="control-btn">통계 초기화</button>
+            </div>
+            <div class="metric"><span>전체 상태</span><span class="metric-value metric-good" id="overall-status">INITIALIZING</span></div>
+            <div class="metric"><span>활성 서비스</span><span class="metric-value" id="active-services">0/0</span></div>
+            <div class="metric"><span>총 요청 수</span><span class="metric-value" id="total-requests">0</span></div>
+            <div class="metric"><span>성공률</span><span class="metric-value metric-good" id="success-rate">100%</span></div>
+        </div>
+
+        <div class="widget"><h3>⏱️ 응답 시간 추이</h3><div class="chart-container"><canvas id="responseTimeChart"></canvas></div></div>
+        <div class="widget"><h3>📈 처리량 (RPS)</h3><div class="chart-container"><canvas id="throughputChart"></canvas></div></div>
+
+        <div class="widget">
+            <h3>🖥️ 서버 상태</h3>
+            <ul class="server-list" id="server-list"></ul>
+        </div>
+
+        <div class="widget">
+            <h3>🌐 네트워크 통계</h3>
+            <div class="metric"><span>현재 RPS</span><span class="metric-value" id="current-rps">0</span></div>
+            <div class="metric"><span>평균 응답시간</span><span class="metric-value" id="avg-response-time">0ms</span></div>
+            <div class="metric"><span>에러율</span><span class="metric-value" id="error-rate">0%</span></div>
+        </div>
+
+        <div class="widget">
+            <h3>🚨 알람 및 이벤트</h3>
+            <ul class="alerts-container" id="alerts-container"></ul>
+        </div>
+
+        <div class="widget">
+            <h3>💾 데이터 저장소 상태</h3>
+            <div class="metric"><span>데이터베이스</span><span class="metric-value metric-good" id="db-status">N/A</span></div>
+            <div class="metric"><span>캐시 히트율</span><span class="metric-value" id="cache-hit-rate">0%</span></div>
+            <div class="metric"><span>활성 세션</span><span class="metric-value" id="active-sessions">0</span></div>
+        </div>
+
+        <div class="widget" style="grid-column: 1 / -1;">
+            <h3>📝 실시간 로그</h3>
+            <div class="logs-container" id="logs-container"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        const config = {
+            // [수정] 모든 요청은 로드 밸런서를 통하므로, 단일 엔드포인트로 통일합니다.
+            apiEndpoint: 'http://localhost:7100',
+            refreshInterval: 2000,
+            maxChartPoints: 30,
+            maxLogEntries: 50,
+            maxAlerts: 5,
+        };
+
+        const eventBus = {
+            events: {},
+            subscribe(eventName, callback) { if (!this.events[eventName]) this.events[eventName] = []; this.events[eventName].push(callback); },
+            publish(eventName, data) { if (this.events[eventName]) this.events[eventName].forEach(callback => callback(data)); }
+        };
+
+        const apiService = {
+            monitoringEnabled: true,
+            fetchIntervalId: null,
+            async fetchAllStats() {
+                try {
+                    // [수정] 두 요청 모두 단일 apiEndpoint(로드 밸런서)를 통해 호출합니다.
+                    // 로드 밸런서의 통계는 /lb-stats
+                    // API 게이트웨이의 통계는 /stats (로드 밸런서가 알아서 전달해 줌)
+                    const [lbResponse, apiResponse] = await Promise.all([
+                        fetch(config.apiEndpoint + '/lb-stats'),
+                        fetch(config.apiEndpoint + '/stats')
+                    ]);
+
+                    if (!lbResponse.ok || !apiResponse.ok) {
+                        // 403 에러 등 응답이 정상이 아닐 경우를 처리
+                        if (!lbResponse.ok) console.error('Load Balancer stats fetch failed:', lbResponse.statusText);
+                        if (!apiResponse.ok) console.error('API Gateway stats fetch failed:', apiResponse.statusText);
+                        throw new Error('Network response was not ok');
+                    }
+
+                    const lbStats = await lbResponse.json();
+                    const apiStats = await apiResponse.json();
+                    eventBus.publish('statsUpdated', { lbStats, apiStats, isFetchSuccess: true });
+                } catch (error) {
+                    eventBus.publish('fetchError', { error, isFetchSuccess: false });
+                }
+            },
+            async resetAllStats() {
+                try {
+                    // [수정] reset 요청도 로드 밸런서를 통해 각 서비스로 전달되도록 합니다.
+                    // 로드 밸런서의 /reset-stats 와 API 게이트웨이의 /reset-stats는 이름이 같지만
+                    // 로드 밸런서가 자신의 것은 직접 처리하고, API 게이트웨이 것은 전달해 줄 것입니다.
+                    // (단, 현재 API 게이트웨이 /reset-stats는 로드밸런서를 통해 라우팅되지 않으므로,
+                    // lb-stats 초기화만 호출하거나, 라우팅 규칙을 추가해야 합니다. 여기서는 lb-stats만 초기화)
+                    await Promise.all([
+                        fetch(config.apiEndpoint + '/reset-stats', { method: 'POST' }),
+                        // API Gateway의 reset은 /api/v1/reset-stats 와 같이 별도 경로가 필요할 수 있으나,
+                        // 현재 구조에서는 로드밸런서가 /reset-stats를 직접 처리하므로 아래 라인은 생략하거나
+                        // 로드밸런서에 라우팅 규칙을 추가해야 함. 여기서는 로드밸런서 리셋만 수행.
+                        fetch(config.apiEndpoint + '/reset-stats', { method: 'POST' })
+                    ]);
+                    return true;
+                } catch (error) {
+                    console.error('Failed to reset stats:', error);
+                    return false;
+                }
+            },
+            start() {
+                this.monitoringEnabled = true;
+                this.fetchAllStats();
+                if (this.fetchIntervalId) clearInterval(this.fetchIntervalId);
+                this.fetchIntervalId = setInterval(() => { if (this.monitoringEnabled) this.fetchAllStats(); }, config.refreshInterval);
+                eventBus.publish('log', { message: 'Monitoring started.' });
+            },
+            stop() {
+                this.monitoringEnabled = false;
+                eventBus.publish('log', { message: 'Monitoring paused.' });
+            }
+        };
+
+        // ... (이하 chartModule, statusModule 등 나머지 코드는 기존과 동일)
+        const chartModule = {
+            charts: {},
+            init() {
+                // [수정] 모든 차트가 기본 자동 스케일링을 사용하도록 공통 옵션을 단순화합니다.
+                const commonOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#fff' } },
+                        y: { ticks: { color: '#fff' }, beginAtZero: true } // Y축이 0부터 시작하도록만 설정
+                    }
+                };
+
+                // 두 차트 모두 동일한 공통 옵션을 사용합니다.
+                this.charts.responseTime = new Chart(document.getElementById('responseTimeChart')?.getContext('2d'), {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ data: [], borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.1)', tension: 0.4, fill: true }] },
+                    options: commonOptions
+                });
+
+                this.charts.throughput = new Chart(document.getElementById('throughputChart')?.getContext('2d'), {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ data: [], backgroundColor: '#3b82f6' }] },
+                    options: commonOptions // 처리량 차트도 max 설정이 없는 공통 옵션을 사용
+                });
+
+                eventBus.subscribe('statsUpdated', ({ lbStats }) => this.update(lbStats));
+                eventBus.subscribe('reset', () => this.reset());
+            },
+
+            update(lbStats) {
+                const now = new Date().toLocaleTimeString();
+
+                // [수정] updateChart 헬퍼 함수를 다시 사용하여 코드를 간결하게 만듭니다.
+                const updateChart = (chart, data) => {
+                    if (!chart) return;
+                    chart.data.labels.push(now);
+                    chart.data.datasets[0].data.push(data);
+                    if (chart.data.labels.length > config.maxChartPoints) {
+                        chart.data.labels.shift();
+                        chart.data.datasets[0].data.shift();
+                    }
+                    // Y축 max를 수동으로 제어하는 모든 로직을 제거했습니다.
+                    // Chart.js가 데이터에 맞춰 자동으로 축을 리사이징하도록 합니다.
+                    chart.update('none');
+                };
+
+                updateChart(this.charts.responseTime, lbStats?.load_balancer?.avg_response_time_ms || 0);
+                updateChart(this.charts.throughput, lbStats?.load_balancer?.requests_per_second || 0);
+            },
+
+            reset() {
+                // [수정] 리셋 시 차트의 데이터만 비웁니다.
+                // Y축 max 옵션을 수동으로 리셋할 필요가 없습니다.
+                Object.values(this.charts).forEach(chart => {
+                    if(chart) {
+                        chart.data.labels = [];
+                        chart.data.datasets[0].data = [];
+                        chart.update();
+                    }
+                });
+            }
+        };
+
+        const statusModule = {
+            init() {
+                eventBus.subscribe('statsUpdated', ({ lbStats, apiStats, isFetchSuccess }) => this.update(lbStats, apiStats, isFetchSuccess));
+                eventBus.subscribe('fetchError', ({ isFetchSuccess }) => this.update(null, null, isFetchSuccess));
+            },
+            update(lbStats, apiStats, isFetchSuccess) {
+                const elements = {
+                    overallStatus: document.getElementById('overall-status'), activeServices: document.getElementById('active-services'),
+                    totalRequests: document.getElementById('total-requests'), successRate: document.getElementById('success-rate'),
+                    currentRps: document.getElementById('current-rps'), avgResponseTime: document.getElementById('avg-response-time'),
+                    errorRate: document.getElementById('error-rate'), dbStatus: document.getElementById('db-status'),
+                    cacheHitRate: document.getElementById('cache-hit-rate'), activeSessions: document.getElementById('active-sessions'),
+                    serverList: document.getElementById('server-list'),
+                };
+                if (!isFetchSuccess) {
+                    elements.overallStatus.textContent = 'DISCONNECTED';
+                    elements.overallStatus.className = 'metric-value metric-danger';
+                    this.updateServerList(null, elements.serverList, false);
+                    return;
+                }
+                const lbData = lbStats.load_balancer;
+                const healthData = lbStats.health_check;
+                elements.totalRequests.textContent = (lbData?.total_requests || 0).toLocaleString();
+                elements.successRate.textContent = `${(lbData?.success_rate || 0).toFixed(1)}%`;
+                elements.currentRps.textContent = (lbData?.requests_per_second || 0).toFixed(1);
+                elements.avgResponseTime.textContent = `${(lbData?.avg_response_time_ms || 0).toFixed(1)}ms`;
+                elements.errorRate.textContent = `${(100 - (lbData?.success_rate || 100)).toFixed(1)}%`;
+                const healthy = healthData?.healthy_servers || 0;
+                const total = healthData?.total_servers || 0;
+                elements.activeServices.textContent = `${healthy + 1}/${total + 1}`;
+                const dbIsHealthy = apiStats?.database?.status === 'healthy';
+                elements.dbStatus.textContent = dbIsHealthy ? 'ONLINE' : 'OFFLINE';
+                elements.dbStatus.className = `metric-value ${dbIsHealthy ? 'metric-good' : 'metric-danger'}`;
+                elements.cacheHitRate.textContent = `${(apiStats?.cache?.performance?.hit_rate || 0).toFixed(1)}%`;
+                elements.activeSessions.textContent = apiStats?.auth?.total_active_sessions || 0;
+                if (healthy < total) {
+                    elements.overallStatus.textContent = 'DEGRADED';
+                    elements.overallStatus.className = 'metric-value metric-danger';
+                } else if ((lbData?.success_rate || 100) < 95) {
+                    elements.overallStatus.textContent = 'WARNING';
+                    elements.overallStatus.className = 'metric-value metric-warning';
+                } else {
+                    elements.overallStatus.textContent = 'HEALTHY';
+                    elements.overallStatus.className = 'metric-value metric-good';
+                }
+                this.updateServerList(healthData?.server_details, elements.serverList, true);
+            },
+            updateServerList(serverDetails, serverListElement, isLbHealthy) {
+                if (!serverListElement) return;
+                serverListElement.innerHTML = '';
+                const lbItem = document.createElement('li');
+                lbItem.className = 'server-item';
+                const lbStatusClass = isLbHealthy ? 'status-healthy' : 'status-error';
+                lbItem.innerHTML = `<span><span class="status-indicator ${lbStatusClass}"></span>Load Balancer (7100)</span><span>${isLbHealthy ? 'Online' : 'Offline'}</span>`;
+                serverListElement.appendChild(lbItem);
+                if (!serverDetails) return;
+                Object.entries(serverDetails).forEach(([server, stats]) => {
+                    const li = document.createElement('li');
+                    li.className = 'server-item';
+                    const isHealthy = stats.healthy;
+                    const statusClass = isHealthy ? 'status-healthy' : 'status-error';
+                    const responseTime = stats.avg_response_time ? `${stats.avg_response_time.toFixed(1)}ms` : 'N/A';
+                    li.innerHTML = `<span><span class="status-indicator ${statusClass}"></span>API Gateway (${server.split(':')[1]})</span><span>${isHealthy ? responseTime : 'Offline'}</span>`;
+                    serverListElement.appendChild(li);
+                });
+            }
+        };
+
+        const alertModule = {
+            init() {
+                eventBus.subscribe('statsUpdated', ({ lbStats }) => this.checkAlerts(lbStats));
+            },
+            checkAlerts(lbStats) {
+                const lbData = lbStats?.load_balancer;
+                const healthData = lbStats?.health_check;
+                if (!lbData || !healthData) return;
+                const totalRequests = lbData.total_requests;
+                const successRate = lbData.success_rate;
+                const avgResponseTime = lbData.avg_response_time_ms;
+                const healthy = healthData.healthy_servers;
+                const total = healthData.total_servers;
+                if (totalRequests > 0 && successRate !== undefined && successRate < 95) {
+                    this.addAlert('warning', `Success rate is low: ${successRate.toFixed(1)}%`);
+                }
+                if (avgResponseTime !== undefined && avgResponseTime > 500) {
+                    this.addAlert('warning', `High response time: ${avgResponseTime.toFixed(1)}ms`);
+                }
+                if (healthy !== undefined && total !== undefined && healthy < total) {
+                    this.addAlert('error', `${total - healthy} backend server(s) are down.`);
+                }
+            },
+            addAlert(type, message) {
+                const container = document.getElementById('alerts-container');
+                if (!container) return;
+                const alert = document.createElement('li');
+                alert.className = `alert-box ${type}`;
+                alert.innerHTML = `<strong>${type.toUpperCase()}:</strong> ${message}`;
+                container.insertBefore(alert, container.firstChild);
+                if (container.children.length > config.maxAlerts) {
+                    container.removeChild(container.lastChild);
+                }
+            }
+        };
+
+        const controlsModule = {
+            init() {
+                document.getElementById('toggle-monitoring-btn')?.addEventListener('click', this.toggleMonitoring);
+                document.getElementById('refresh-btn')?.addEventListener('click', this.refresh);
+                document.getElementById('reset-stats-btn')?.addEventListener('click', this.reset);
+            },
+            toggleMonitoring() {
+                const btn = document.getElementById('toggle-monitoring-btn');
+                apiService.monitoringEnabled = !apiService.monitoringEnabled;
+                if (apiService.monitoringEnabled) {
+                    btn.textContent = '모니터링 ON';
+                    btn.classList.add('active');
+                    apiService.start();
+                } else {
+                    btn.textContent = '모니터링 OFF';
+                    btn.classList.remove('active');
+                    apiService.stop();
+                }
+            },
+            async reset() {
+                eventBus.publish('log', { message: 'Resetting backend statistics...' });
+                const success = await apiService.resetAllStats();
+                if (success) {
+                    eventBus.publish('log', { message: 'Statistics have been reset.' });
+                    eventBus.publish('reset');
+                    await apiService.fetchAllStats();
+                } else {
+                    eventBus.publish('log', { message: 'Failed to reset backend stats.', type: 'error' });
+                }
+            },
+            refresh() {
+                eventBus.publish('log', { message: 'Manual refresh triggered.' });
+                apiService.fetchAllStats();
+            }
+        };
+
+        const utilityModule = {
+            startTime: Date.now(),
+            init() {
+                eventBus.subscribe('log', ({ message, type = 'info' }) => this.addLog(message, type));
+                eventBus.subscribe('fetchError', ({ error }) => this.addLog(`[ERROR] ${error.message}`, 'error'));
+                setInterval(() => this.updateTime(), 1000);
+            },
+            addLog(message, type = 'info') { const logsContainer = document.getElementById('logs-container'); if (!logsContainer) return; const logEntry = document.createElement('div'); logEntry.className = 'log-entry'; logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`; logEntry.style.color = type === 'error' ? '#f87171' : '#ecf0f1'; logsContainer.insertBefore(logEntry, logsContainer.firstChild); if (logsContainer.children.length > config.maxLogEntries) logsContainer.removeChild(logsContainer.lastChild); },
+            updateTime() { const uptimeElem = document.getElementById('uptime'); const timeElem = document.getElementById('current-time'); if (timeElem) timeElem.textContent = new Date().toLocaleString(); if (uptimeElem) { const uptime = Date.now() - this.startTime; const h = String(Math.floor(uptime / 3600000)).padStart(2, '0'); const m = String(Math.floor((uptime % 3600000) / 60000)).padStart(2, '0'); const s = String(Math.floor((uptime % 60000) / 1000)).padStart(2, '0'); uptimeElem.textContent = `Uptime: ${h}:${m}:${s}`; } }
+        };
+
+        function main() {
+            chartModule.init();
+            statusModule.init();
+            alertModule.init();
+            controlsModule.init();
+            utilityModule.init();
+            eventBus.publish('log', { message: 'Monitoring dashboard initialized.' });
+            apiService.start();
+        }
+
+        document.addEventListener('DOMContentLoaded', main);
+    </script>
+</body>
+</html>
