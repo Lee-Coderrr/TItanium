@@ -1,0 +1,40 @@
+# 워크플로우의 이름을 지정합니다. GitHub Actions 탭에 이 이름이 표시됩니다.
+name: Build and Push Docker Images
+
+# 이 워크플로우가 언제 실행될지 트리거를 정의합니다.
+on:
+  # 'main' 브랜치에 코드가 푸시될 때 실행됩니다.
+  push:
+    branches: [ "main" ]
+
+# 실제 수행할 작업(job)들을 정의합니다.
+jobs:
+  # 'build-and-push' 라는 이름의 작업을 정의합니다.
+  build-and-push:
+    # 이 작업은 최신 버전의 우분투(리눅스) 환경에서 실행됩니다.
+    runs-on: ubuntu-latest
+
+    # 작업의 단계(step)들을 순서대로 정의합니다.
+    steps:
+      # 1. 저장소의 코드를 가상 머신으로 내려받습니다. (체크아웃)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 저장해둔 Secrets를 사용하여 Docker Hub에 로그인합니다.
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 3. 로드 밸런서 이미지를 빌드하고 Docker Hub에 푸시합니다.
+      - name: Build and push load-balancer
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-lb:latest ./load_balancer
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-lb:latest
+
+      # 4. API 게이트웨이 이미지를 빌드하고 Docker Hub에 푸시합니다.
+      - name: Build and push api-gateway
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest ./api_gateway
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest
