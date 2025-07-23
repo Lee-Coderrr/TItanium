@@ -12,7 +12,7 @@ class LoadBalancerConfig:
 class Config:
     def __init__(self):
         self.load_balancer = LoadBalancerConfig(
-            backend_servers=['api-gateway:8000']
+            backend_servers=['http://api-gateway-service:8000']
         )
 
 config = Config()
