@@ -1,0 +1,34 @@
+# API 버전: Deployment는 apps/v1 그룹에 속합니다.
+apiVersion: apps/v1
+# 리소스 종류: 우리는 'Deployment'를 만들 것입니다.
+kind: Deployment
+# 메타데이터: 이 Deployment의 이름 등 식별 정보입니다.
+metadata:
+  name: api-gateway-deployment
+# 명세: 이 Deployment가 어떻게 동작해야 하는지에 대한 상세 설명입니다.
+spec:
+  # 복제본 수: 이 애플리케이션(파드)을 항상 2개 유지하도록 합니다.
+  replicas: 2
+  # 셀렉터: 이 Deployment가 어떤 파드들을 관리할지 선택하는 규칙입니다.
+  selector:
+    matchLabels:
+      # app: api-gateway 라는 라벨이 붙은 파드들을 찾아 관리합니다.
+      app: api-gateway
+  # 템플릿: 위 규칙에 따라 생성될 파드의 설계도입니다.
+  template:
+    # 파드의 메타데이터
+    metadata:
+      # 이 파드에는 'app: api-gateway' 라는 라벨(이름표)을 붙입니다.
+      labels:
+        app: api-gateway
+    # 파드의 명세
+    spec:
+      # 이 파드가 포함할 컨테이너들의 목록입니다.
+      containers:
+      - name: api-gateway-container
+        # CI/CD 파이프라인을 통해 Docker Hub에 올려둔 이미지를 사용합니다.
+        # <Your-DockerHub-ID> 부분은 당신의 ID로 변경해야 합니다.
+        image: dongju101/titanium-api
+        # 컨테이너가 사용하는 포트를 명시합니다.
+        ports:
+        - containerPort: 8000

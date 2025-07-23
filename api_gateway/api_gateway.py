@@ -294,10 +294,17 @@ async def start_api_gateway_instance(server_config):
 
 
 if __name__ == "__main__":
-    # [수정] print() 대신 로거 사용
+    # 로깅 설정
+    logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO'),
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     logger = logging.getLogger('APIGateway')
-    server_config = config.get_api_gateway_config(0)
+
+    # [수정] 단순화된 config 객체에서 직접 서버 설정을 가져옵니다.
+    server_config = config.server
+
     try:
+        # 백그라운드 서비스 태스크 시작
         asyncio.run(start_api_gateway_instance(server_config))
     except KeyboardInterrupt:
         logger.info("API Gateway가 종료되었습니다.")
