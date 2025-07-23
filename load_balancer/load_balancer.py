@@ -2,7 +2,7 @@ import asyncio
 import time
 import os
 from datetime import datetime
-from collections import defaultdict, deque
+from collections import deque
 from typing import List, Dict, Optional
 
 from aiohttp import web, ClientSession, ClientTimeout

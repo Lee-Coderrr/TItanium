@@ -8,6 +8,7 @@ class LoadBalancerConfig:
     backend_servers: List[str] = field(default_factory=list)
     algorithm: str = 'round_robin'
     health_check_interval: int = 15
+    max_failures: int = 3
 
 class Config:
     def __init__(self):
