@@ -35,6 +35,11 @@ jobs:
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest ./api_gateway
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest
 
+      - name: Build and push dashboard-ui
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-ui:latest ./dashboard-ui
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-ui:latest
+
   # 2. EC2에 배포하는 작업
   deploy:
     # 'build-and-push' 작업이 성공해야만 이 작업이 실행됩니다.

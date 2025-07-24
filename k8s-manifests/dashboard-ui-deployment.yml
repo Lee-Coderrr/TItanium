@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-ui-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard-ui
+  template:
+    metadata:
+      labels:
+        app: dashboard-ui
+    spec:
+      containers:
+      - name: dashboard-ui-container
+        # CI/CD에서 빌드할 이미지 이름을 지정합니다. (예: <ID>/titanium-ui:latest)
+        image: dongju101/titanium-ui:latest
+        ports:
+        - containerPort: 80 # Nginx는 기본적으로 80 포트를 사용합니다.
