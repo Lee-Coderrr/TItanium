@@ -119,16 +119,36 @@ class APIGateway:
             return self._json_response(401, {'error': 'Authentication required'})
 
         user_id = user_context['user_id']
+
+        # [핵심 수정!] 1. 캐시에서 먼저 사용자 정보 조회
+        cache_key = f"user_profile:{user_id}"
+        cached_user_info = await cache_service.get(cache_key)
+
+        if cached_user_info:
+            # 캐시에 정보가 있으면 DB 조회 없이 바로 반환
+            self.logger.info(f"Cache HIT for user_profile: {user_id}")
+            # 세션 정보는 매번 새로 가져와서 추가
+            session_info = await auth_service.get_session_info(user_context['token'])
+            cached_user_info['session'] = session_info
+            return self._json_response(200, {'success': True, 'user': cached_user_info, 'source': 'cache'})
+
+        self.logger.info(f"Cache MISS for user_profile: {user_id}")
+
+        # 2. 캐시에 정보가 없으면 DB에서 조회
         user_info = db_service.get_user_by_id(user_id)
 
         if not user_info:
             return self._json_response(404, {'error': 'User not found'})
 
-        # 세션 정보 추가
-        session_info = auth_service.get_session_info(user_context['token'])
+        # 3. DB에서 조회한 정보를 캐시에 저장
+        # 비밀번호 등 민감한 정보는 제외하고 저장하는 것이 좋습니다.
+        await cache_service.set(cache_key, user_info, ttl=300)  # 5분간 캐시
+
+        # 세션 정보 추가 후 반환
+        session_info = await auth_service.get_session_info(user_context['token'])
         user_info['session'] = session_info
 
-        return self._json_response(200, {'success': True, 'user': user_info})
+        return self._json_response(200, {'success': True, 'user': user_info, 'source': 'database'})
 
     async def handle_get_cache(self, request: web.Request) -> web.Response:
         """캐시에서 데이터 조회"""
