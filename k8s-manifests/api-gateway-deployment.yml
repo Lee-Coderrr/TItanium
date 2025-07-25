@@ -7,8 +7,8 @@ metadata:
   name: api-gateway-deployment
 # 명세: 이 Deployment가 어떻게 동작해야 하는지에 대한 상세 설명입니다.
 spec:
-  # 복제본 수: 이 애플리케이션(파드)을 항상 2개 유지하도록 합니다.
-  replicas: 2
+  # 복제본 수: 이 애플리케이션(파드)을 항상 1개 유지하도록 합니다.
+  replicas: 1
   # 셀렉터: 이 Deployment가 어떤 파드들을 관리할지 선택하는 규칙입니다.
   selector:
     matchLabels:
