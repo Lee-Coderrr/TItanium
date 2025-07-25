@@ -1,0 +1,15 @@
+# k8s-manifests/api-gateway-pvc.yml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  # 이 저장 공간 요청의 이름을 지정합니다.
+  name: api-gateway-data-pvc
+spec:
+  # 접근 모드: ReadWriteOnce는 한 번에 하나의 노드만 이 볼륨에 쓸 수 있음을 의미합니다.
+  # Minikube와 같은 단일 노드 환경에 적합합니다.
+  accessModes:
+    - ReadWriteOnce
+  # 리소스 요청: 1 GigaByte의 저장 공간을 요청합니다.
+  resources:
+    requests:
+      storage: 1Gi
