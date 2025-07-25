@@ -22,7 +22,7 @@ class CacheConfig:
     """캐시 서비스 설정"""
     default_ttl: int = 300
     cleanup_interval: int = 60
-
+    max_memory_mb: int = 50
 
 @dataclass
 class AuthConfig:
