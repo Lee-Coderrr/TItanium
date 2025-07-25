@@ -93,7 +93,7 @@ class APIGateway:
         try:
             data = await request.json()
             client_ip = request.get('client_ip', 'N/A')
-            auth_result = auth_service.authenticate(data.get('username'), data.get('password'), client_ip)
+            auth_result = await auth_service.authenticate(data.get('username'), data.get('password'), client_ip)
             status_code = 200 if auth_result.get('success') else 401
             return self._json_response(status_code, auth_result)
         except json.JSONDecodeError:
