@@ -35,6 +35,7 @@ jobs:
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest ./api_gateway
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest
 
+      # 대시보드 이미지 빌드하고 푸시
       - name: Build and push dashboard-ui
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-ui:latest ./dashboard-ui

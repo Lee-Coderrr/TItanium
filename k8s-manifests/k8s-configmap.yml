@@ -1,0 +1,9 @@
+# k8s-manifests/k8s-configmap.yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # ConfigMap의 이름을 지정합니다.
+  name: app-config
+data:
+  # 이 값은 Deployment에서 참조하여 환경 변수로 주입됩니다.
+  DOCKER_HUB_ID: dongju101

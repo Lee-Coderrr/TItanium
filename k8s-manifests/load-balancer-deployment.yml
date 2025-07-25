@@ -18,3 +18,12 @@ spec:
         image: dongju101/titanium-lb:latest
         ports:
         - containerPort: 7100
+        env:
+          # Secret에서 비밀 키 값을 가져와 환경 변수로 설정합니다.
+          - name: INTERNAL_API_SECRET
+            valueFrom:
+              secretKeyRef:
+                # 'app-secrets' Secret을 참조합니다.
+                name: app-secrets
+                # 그 안의 'INTERNAL_API_SECRET' 키의 값을 가져옵니다.
+                key: INTERNAL_API_SECRET

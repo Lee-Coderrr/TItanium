@@ -7,7 +7,7 @@ import logging
 import os
 
 
-# --- 설정 클래스 (config.py에서 가져오는 대신, 여기서 직접 정의하여 독립성 강화) ---
+# --- 설정 클래스 ---
 class AppConfig:
     HOST = '0.0.0.0'
     PORT = 7100
@@ -15,7 +15,6 @@ class AppConfig:
     DASHBOARD_UI_URL = 'http://dashboard-ui-service:80'
     HEALTH_CHECK_INTERVAL = 15
     REQUEST_TIMEOUT = 30
-    # [추가됨] API 게이트웨이와 공유할 비밀 키. 환경 변수에서 가져옵니다.
     INTERNAL_API_SECRET = os.getenv('INTERNAL_API_SECRET', 'default-secret')
 
 
@@ -23,7 +22,7 @@ config = AppConfig()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
-# --- 헬스 체크 로직 (백엔드 서비스 상태를 주기적으로 확인) ---
+# --- 헬스 체크 로직 ---
 class HealthChecker:
     def __init__(self, backend_url, session):
         self.backend_url = backend_url
@@ -35,13 +34,10 @@ class HealthChecker:
     async def _check_loop(self):
         while True:
             try:
-                # API Gateway의 헬스체크 엔드포인트를 호출합니다.
-                # 헬스 체크 요청에는 비밀 키가 필요 없습니다.
                 async with self.session.get(f"{self.backend_url}/health", timeout=5) as response:
                     self.is_healthy = response.status == 200
             except Exception:
                 self.is_healthy = False
-
             status = "HEALTHY" if self.is_healthy else "UNHEALTHY"
             self.logger.info(f"Backend ({self.backend_url}) status: {status}")
             await asyncio.sleep(config.HEALTH_CHECK_INTERVAL)
@@ -53,35 +49,35 @@ class SmartLoadBalancer:
         self.session = ClientSession(timeout=ClientTimeout(total=config.REQUEST_TIMEOUT))
         self.health_checker = HealthChecker(config.API_GATEWAY_URL, self.session)
         self.logger = logging.getLogger('SmartLoadBalancer')
-
-        # 통계 정보
         self.start_time = time.time()
         self.total_requests = 0
         self.failed_requests = 0
         self.request_timestamps = deque(maxlen=200)
 
-    # [핵심] 요청을 경로에 따라 분기하는 핸들러
+    # [핵심 수정!] 요청을 경로에 따라 분기하는 핸들러
     async def handle_request(self, request: web.Request) -> web.Response:
         self.total_requests += 1
         self.request_timestamps.append(time.time())
-
         path = request.path
 
-        # 1. 로드밸런서 자체 엔드포인트 처리
+        # 1. 로드밸런서 자체 API 엔드포인트 처리
         if path == '/lb-stats':
             return await self.handle_lb_stats(request)
 
-        # 2. UI 관련 요청은 dashboard-ui 서비스로 프록시
-        if path == '/' or path.startswith('/script.js') or path.startswith('/style.css'):
-            return await self.proxy_request(config.DASHBOARD_UI_URL, request)
-
-        # 3. 그 외 모든 요청은 api-gateway로 프록시
-        else:
+        # 2. API 게이트웨이로 보내야 할 API 경로들 처리
+        #    '/stats', '/login' 등 API 관련 경로는 모두 여기에 해당됩니다.
+        elif path.startswith('/stats') or path.startswith('/login') or path.startswith('/profile') or path.startswith(
+                '/cache'):
             if self.health_checker.is_healthy:
                 return await self.proxy_request(config.API_GATEWAY_URL, request)
             else:
                 self.failed_requests += 1
                 return web.Response(status=503, text="Service Unavailable: API Gateway is down.")
+
+        # 3. 위 두 경우에 해당하지 않는 모든 요청은 UI 서비스로 보냅니다.
+        #    '/', '/script.js', '/favicon.ico' 등이 모두 여기에 해당됩니다.
+        else:
+            return await self.proxy_request(config.DASHBOARD_UI_URL, request)
 
     # 백엔드로 요청을 전달하는 프록시 메서드
     async def proxy_request(self, target_base_url: str, request: web.Request) -> web.Response:
@@ -89,11 +85,8 @@ class SmartLoadBalancer:
         try:
             headers = dict(request.headers)
             body = await request.read()
-
-            # [핵심 수정!] 목표가 API 게이트웨이일 경우, 내부 비밀 키 헤더를 추가합니다.
             if target_base_url == config.API_GATEWAY_URL:
                 headers['X-Internal-Secret'] = config.INTERNAL_API_SECRET
-
             async with self.session.request(
                     request.method, target_url, headers=headers, data=body
             ) as response:
@@ -110,28 +103,16 @@ class SmartLoadBalancer:
 
     # 로드밸런서 자체 통계를 반환하는 핸들러
     async def handle_lb_stats(self, request: web.Request) -> web.Response:
-        uptime = time.time() - self.start_time
         now = time.time()
         recent_requests_count = sum(1 for ts in self.request_timestamps if now - ts <= 10)
         rps = recent_requests_count / 10.0
         success_rate = ((self.total_requests - self.failed_requests) / max(self.total_requests, 1)) * 100
-
         stats = {
-            'load_balancer': {
-                'total_requests': self.total_requests,
-                'success_rate': round(success_rate, 2),
-                'requests_per_second': round(rps, 2),
-            },
-            'health_check': {
-                'backend_servers': 1,
-                'healthy_servers': 1 if self.health_checker.is_healthy else 0,
-                'server_details': {
-                    config.API_GATEWAY_URL: {
-                        'healthy': self.health_checker.is_healthy,
-                        'avg_response_time': 0
-                    }
-                }
-            },
+            'load_balancer': {'total_requests': self.total_requests, 'success_rate': round(success_rate, 2),
+                              'requests_per_second': round(rps, 2), },
+            'health_check': {'backend_servers': 1, 'healthy_servers': 1 if self.health_checker.is_healthy else 0,
+                             'server_details': {config.API_GATEWAY_URL: {'healthy': self.health_checker.is_healthy,
+                                                                         'avg_response_time': 0}}},
             'timestamp': datetime.now().isoformat()
         }
         return web.json_response(stats)
@@ -145,12 +126,10 @@ async def main():
     lb = SmartLoadBalancer()
     app = web.Application()
     app.router.add_route("*", "/{path:.*}", lb.handle_request)
-
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, config.HOST, config.PORT)
     await site.start()
-
     logging.info(f"Smart Load Balancer (Reverse Proxy) started at http://{config.HOST}:{config.PORT}")
     try:
         await asyncio.Event().wait()

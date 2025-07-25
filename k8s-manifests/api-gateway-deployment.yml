@@ -32,3 +32,12 @@ spec:
         # 컨테이너가 사용하는 포트를 명시합니다.
         ports:
         - containerPort: 8000
+        env:
+          # Secret에서 비밀 키 값을 가져와 환경 변수로 설정합니다.
+          - name: INTERNAL_API_SECRET
+            valueFrom:
+              secretKeyRef:
+                # 'app-secrets'라는 이름의 Secret을 참조합니다.
+                name: app-secrets
+                # 그 안의 'INTERNAL_API_SECRET'라는 키의 값을 가져옵니다.
+                key: INTERNAL_API_SECRET

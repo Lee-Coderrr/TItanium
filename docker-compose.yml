@@ -1,40 +1,39 @@
 services:
-  # 첫 번째 서비스: 로드 밸런서
   load-balancer:
-    # CI 파이프라인에서 빌드한 이미지를 Docker Hub에서 가져옵니다.
-    # DOCKER_HUB_ID는 실행 시점에 환경 변수로 주입됩니다.
-    image: ${DOCKER_HUB_ID}/titanium-lb:latest
+    image: dongju101/titanium-lb:latest
     container_name: lb-service
-    # 외부 요청을 받기 위해 포트를 호스트와 연결합니다.
     ports:
       - "7100:7100"
-    # 다른 서비스와 통신하기 위한 공용 네트워크입니다.
     networks:
       - titanium-net
-    # 대시보드 UI 파일(index.html)을 컨테이너에 제공하기 위한 볼륨입니다.
     volumes:
-      - ./data:/app/data
-    # api-gateway가 실행된 후에 시작되도록 설정하여 안정성을 높입니다.
+      - ./dashboard-ui:/app/static # UI 파일을 위한 볼륨 경로 수정
     depends_on:
       - api-gateway
+    # [추가됨] 환경 변수를 컨테이너에 주입합니다.
+    environment:
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
 
-  # 두 번째 서비스: API 게이트웨이
   api-gateway:
-    # CI 파이프라인에서 빌드한 이미지를 Docker Hub에서 가져옵니다.
-    image: ${DOCKER_HUB_ID}/titanium-api:latest
+    image: dongju101/titanium-api:latest
     container_name: api-gateway-service
-    # 외부에서 직접 접근할 수 없도록 포트를 노출하지 않습니다. (보안 강화)
     networks:
       - titanium-net
-    # 데이터베이스 파일(.db)을 호스트에 저장하여 데이터 영속성을 보장합니다.
     volumes:
-      - ./api_gateway_data:/app/data
+      - api_gateway_data:/app/data
+    # [추가됨] 동일한 비밀 키를 api-gateway에도 주입합니다.
+    environment:
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
 
-# 서비스들이 사용할 공용 네트워크를 정의합니다.
+  dashboard-ui:
+    image: dongju101/titanium-ui:latest
+    container_name: dashboard-ui-service
+    networks:
+      - titanium-net
+
 networks:
   titanium-net:
     driver: bridge
 
-# 데이터 영속성을 위한 볼륨을 명시적으로 정의합니다. (선택적이지만 좋은 습관)
 volumes:
   api_gateway_data:
