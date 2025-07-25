@@ -64,7 +64,7 @@ class ReverseProxy:
         if path == '/lb-stats':
             return await self.get_proxy_stats(request)
 
-        api_paths = ('/stats', '/login', '/profile', '/cache', '/logout', '/admin')
+        api_paths = ('/health, /stats', '/login', '/profile', '/cache', '/logout', '/admin')
         if path.startswith(api_paths):
             if self.health_checker.is_healthy:
                 return await self.proxy_request(config.API_GATEWAY_URL, request)
