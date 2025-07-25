@@ -2,8 +2,28 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  # ConfigMap의 이름을 지정합니다.
   name: app-config
 data:
-  # 이 값은 Deployment에서 참조하여 환경 변수로 주입됩니다.
-  DOCKER_HUB_ID: dongju101
+  # --- 로드밸런서(Reverse Proxy) 설정 ---
+  LB_PORT: "7100"
+  API_GATEWAY_URL: "http://api-gateway-service:8000"
+  DASHBOARD_UI_URL: "http://dashboard-ui-service:80"
+  HEALTH_CHECK_INTERVAL: "15"
+  REQUEST_TIMEOUT: "30"
+
+  # --- API 게이트웨이 설정 ---
+  API_PORT: "8000"
+  LOG_LEVEL: "INFO"
+  # 데이터베이스 파일 경로 (PVC 마운트 경로와 일치)
+  DB_FILE: "/data/app.db"
+
+  # --- 캐시 서비스 설정 ---
+  CACHE_DEFAULT_TTL: "3600"         # 기본 캐시 유효 시간 (1시간)
+  CACHE_CLEANUP_INTERVAL: "600"   # 캐시 정리 주기 (10분)
+  CACHE_MAX_MEMORY_MB: "50"       # 캐시 최대 메모리 (50MB)
+
+  # --- 인증 서비스 설정 ---
+  SESSION_TIMEOUT: "86400"          # 세션 유효 시간 (24시간)
+
+  # --- CI/CD용 환경 변수 (애플리케이션 실행과 직접적인 관련은 없음) ---
+  DOCKER_HUB_ID: "dongju101"
