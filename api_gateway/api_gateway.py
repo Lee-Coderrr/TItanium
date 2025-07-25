@@ -41,7 +41,7 @@ class APIGateway:
             return None
         token = auth_header[7:]
         # 세션 검증 시 last_access 시간 업데이트
-        session = auth_service.validate_session(token, update_access=True)
+        session = await auth_service.validate_session(token, update_access=True)
         if not session.get('valid'):
             return None
         return {'user_id': session['user_id'], 'username': session['username'], 'token': token}
@@ -183,7 +183,7 @@ class APIGateway:
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header[7:]
-            session = auth_service.validate_session(token, update_access=False)
+            session = await auth_service.validate_session(token, update_access=False)
             if session.get('valid'):
                 user_id = session.get('user_id')
 
