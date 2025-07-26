@@ -144,6 +144,20 @@ class AuthService:
             'timestamp': datetime.now().isoformat()
         }
 
+    async def get_session_info(self, token: str) -> Optional[Dict]:
+        """토큰에 해당하는 세션의 상세 정보를 반환합니다."""
+        async with self.lock:
+            session = self.active_sessions.get(token)
+            if not session:
+                return None
+            return {
+                'username': session.get('username'),
+                'ip_address': session.get('ip_address'),
+                'created_at': datetime.fromtimestamp(session.get('created_at')).isoformat(),
+                'last_access': datetime.fromtimestamp(session.get('last_access')).isoformat(),
+                'expires_at': datetime.fromtimestamp(session.get('expires_at')).isoformat(),
+            }
+
     async def get_active_sessions(self) -> Dict:
         """활성 세션 정보를 요약하여 반환합니다."""
         async with self.lock:
