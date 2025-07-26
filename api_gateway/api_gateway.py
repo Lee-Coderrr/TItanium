@@ -53,7 +53,7 @@ class APIGateway:
 
     async def handle_health_check(self, request: web.Request) -> web.Response:
         db_health = db_service.health_check()
-        cache_health = cache_service.health_check()
+        cache_health = await cache_service.health_check()
         auth_health = auth_service.health_check()
         all_healthy = all(s['status'] == 'healthy' for s in [db_health, cache_health, auth_health])
         status_code = 200 if all_healthy else 503
