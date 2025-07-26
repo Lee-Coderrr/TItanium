@@ -20,9 +20,10 @@ class DatabaseConfig:
 @dataclass
 class CacheConfig:
     """캐시 서비스 설정"""
-    default_ttl: int = 300
-    cleanup_interval: int = 60
-    max_memory_mb: int = 50
+    # [수정!] 레디스 호스트 정보 추가
+    host: str = os.getenv('REDIS_HOST', 'redis-service')
+    port: int = int(os.getenv('REDIS_PORT', '6379'))
+    default_ttl: int = 3600
 
 @dataclass
 class AuthConfig:
