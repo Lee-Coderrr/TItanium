@@ -18,6 +18,9 @@ spec:
         image: dongju101/titanium-lb:latest
         ports:
         - containerPort: 7100
+        envFrom:
+          - configMapRef:
+              name: app-config
         env:
           # Secret에서 비밀 키 값을 가져와 환경 변수로 설정합니다.
           - name: INTERNAL_API_SECRET

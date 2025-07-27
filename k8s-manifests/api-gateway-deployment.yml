@@ -32,6 +32,9 @@ spec:
         # 컨테이너가 사용하는 포트를 명시합니다.
         ports:
         - containerPort: 8000
+        envFrom:
+          - configMapRef:
+              name: app-config
         env:
           # Secret에서 비밀 키 값을 가져와 환경 변수로 설정합니다.
           - name: INTERNAL_API_SECRET
