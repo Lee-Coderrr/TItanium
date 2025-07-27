@@ -1,23 +1,25 @@
-# api-gateway/config.py
+# auth-service/config.py
 import os
 from dataclasses import dataclass
 
 @dataclass
 class ServerConfig:
-    """API 게이트웨이 서버 실행 설정"""
     host: str = '0.0.0.0'
-    port: int = 8000
+    port: int = 8002 # 다른 서비스와 겹치지 않는 포트 사용
 
 @dataclass
+class AuthConfig:
+    session_timeout: int = 86400 # 24시간
+
+# [중요!] 다른 마이크로서비스를 호출하기 위한 URL
+@dataclass
 class ServiceUrls:
-    """호출할 내부 마이크로서비스들의 주소"""
-    # k8s-configmap.yml에 정의된 환경 변수 값을 읽어옵니다.
-    auth_service: str = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8002')
     user_service: str = os.getenv('USER_SERVICE_URL', 'http://user-service:8001')
 
 class Config:
     def __init__(self):
         self.server = ServerConfig()
+        self.auth = AuthConfig()
         self.services = ServiceUrls()
 
 config = Config()

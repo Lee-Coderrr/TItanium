@@ -1,39 +1,85 @@
+# docker-compose.yml
+version: '3.8'
+
+# 이 파일은 EC2 서버에서 CI/CD 파이프라인에 의해 실행됩니다.
+# 각 서비스는 독립된 컨테이너로 실행되며, 'titanium-net'이라는 가상 네트워크를 통해 서로 통신합니다.
+
 services:
+  # 1. 로드밸런서 (외부 진입점)
   load-balancer:
-    image: dongju101/titanium-lb:latest
-    container_name: lb-service
+    # CI/CD에서 빌드한 이미지를 사용합니다. ${DOCKER_HUB_ID}는 파이프라인에서 주입됩니다.
+    image: ${DOCKER_HUB_ID:-dongju101}/titanium-lb:latest
+    container_name: load-balancer
     ports:
-      - "7100:7100"
+      - "7100:7100" # EC2의 7100번 포트를 컨테이너의 7100번 포트로 연결
     networks:
       - titanium-net
-    volumes:
-      - ./dashboard-ui:/app/static # UI 파일을 위한 볼륨 경로 수정
+    environment:
+      # 컨테이너 내부에서 사용할 환경 변수. 다른 서비스의 주소를 알려줍니다.
+      - API_GATEWAY_URL=http://api-gateway:8000
+      - DASHBOARD_UI_URL=http://dashboard-ui:80
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET} # .env 파일이나 셸 환경에서 값을 가져옴
     depends_on:
       - api-gateway
-    # [추가됨] 환경 변수를 컨테이너에 주입합니다.
-    environment:
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - dashboard-ui
 
+  # 2. API 게이트웨이
   api-gateway:
-    image: dongju101/titanium-api:latest
-    container_name: api-gateway-service
+    image: ${DOCKER_HUB_ID:-dongju101}/titanium-api:latest
+    container_name: api-gateway
     networks:
       - titanium-net
-    volumes:
-      - api_gateway_data:/app/data
-    # [추가됨] 동일한 비밀 키를 api-gateway에도 주입합니다.
     environment:
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - USER_SERVICE_URL=http://user-service:8001
+      - AUTH_SERVICE_URL=http://auth-service:8002
+    depends_on:
+      - user-service
+      - auth-service
 
+  # 3. 사용자 서비스 (신규)
+  user-service:
+    image: ${DOCKER_HUB_ID:-dongju101}/titanium-user-service:latest
+    container_name: user-service
+    networks:
+      - titanium-net
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - user_data:/data # SQLite DB 파일을 EC2 호스트에 영속적으로 저장
+    depends_on:
+      - redis
+
+  # 4. 인증 서비스 (신규)
+  auth-service:
+    image: ${DOCKER_HUB_ID:-dongju101}/titanium-auth-service:latest
+    container_name: auth-service
+    networks:
+      - titanium-net
+    environment:
+      - USER_SERVICE_URL=http://user-service:8001
+    depends_on:
+      - user-service
+
+  # 5. 대시보드 UI
   dashboard-ui:
-    image: dongju101/titanium-ui:latest
-    container_name: dashboard-ui-service
+    image: ${DOCKER_HUB_ID:-dongju101}/titanium-ui:latest
+    container_name: dashboard-ui
     networks:
       - titanium-net
 
+  # 6. 레디스 (캐시)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks:
+      - titanium-net
+
+# 모든 서비스가 속할 가상 네트워크 정의
 networks:
   titanium-net:
     driver: bridge
 
+# 데이터 영속성을 위한 볼륨 정의
 volumes:
-  api_gateway_data:
+  user_data:

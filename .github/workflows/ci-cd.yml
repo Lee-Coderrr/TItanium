@@ -1,49 +1,52 @@
-# 워크플로우의 이름을 지정합니다.
+# .github/workflows/deploy-to-ec2.yml
 name: Build, Push, and Deploy to EC2
 
-# 'main' 브랜치에 코드가 푸시될 때 워크플로우를 실행합니다.
 on:
   push:
     branches: [ "main" ]
 
-# 실행될 작업들을 정의합니다.
 jobs:
-  # 1. Docker 이미지 빌드 및 푸시 작업
+  # 1단계: 모든 마이크로서비스의 Docker 이미지를 빌드하고 Docker Hub에 푸시합니다.
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      # 저장소 코드를 체크아웃합니다.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Docker Hub에 로그인합니다.
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 로드 밸런서 이미지를 빌드하고 푸시합니다.
+      # --- 각 마이크로서비스 이미지 빌드 및 푸시 ---
       - name: Build and push load-balancer
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-lb:latest ./load_balancer
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-lb:latest
 
-      # API 게이트웨이 이미지를 빌드하고 푸시합니다.
       - name: Build and push api-gateway
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest ./api_gateway
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest
 
-      # 대시보드 이미지 빌드하고 푸시
+      - name: Build and push user-service
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-user-service:latest ./user-service
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-user-service:latest
+
+      - name: Build and push auth-service
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-auth-service:latest ./auth-service
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-auth-service:latest
+
       - name: Build and push dashboard-ui
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-ui:latest ./dashboard-ui
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-ui:latest
 
-  # 2. EC2에 배포하는 작업
-  deploy:
-    # 'build-and-push' 작업이 성공해야만 이 작업이 실행됩니다.
+  # 2단계: EC2 서버에 접속하여 Docker Compose로 모든 서비스를 실행합니다.
+  deploy-to-ec2:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
@@ -56,28 +59,29 @@ jobs:
           script: |
             # --- EC2 서버에서 실행될 전체 스크립트 ---
             
-            # 1. github.com 호스트 키를 등록하여 SSH 접속 문제를 방지합니다.
+            # 1. GitHub 저장소에 접속하기 위한 호스트 키를 등록합니다.
             ssh-keyscan github.com >> ~/.ssh/known_hosts
             
-            # 2. 프로젝트 폴더가 없으면 git clone, 있으면 git pull을 실행합니다.
+            # 2. 프로젝트 폴더로 이동하고 최신 코드를 받아옵니다.
             if [ ! -d "TItanium" ]; then
               git clone git@github.com:Lee-Coderrr/TItanium.git
             fi
             cd TItanium
             git pull
             
-            # 3. [핵심!] GitHub Secret 값을 EC2 서버의 환경 변수로 설정합니다.
-            # 이렇게 하면 docker-compose.yml 파일에 ID를 하드코딩할 필요가 없습니다.
+            # 3. Docker Hub ID를 환경 변수로 설정합니다.
             export DOCKER_HUB_ID=${{ secrets.DOCKERHUB_USERNAME }}
 
-            # 4. Docker Hub에 로그인합니다.
+            # 4. Docker Hub에 로그인하여 private 이미지를 받을 수 있도록 준비합니다.
             docker login -u $DOCKER_HUB_ID -p ${{ secrets.DOCKERHUB_TOKEN }}
             
-            # 5. docker-compose.yml에 명시된 최신 이미지를 내려받습니다.
+            # 5. docker-compose.yml에 정의된 모든 서비스의 최신 이미지를 내려받습니다.
+            #    (이 과정에서 새로 추가된 user-service와 auth-service 이미지도 함께 받아옵니다.)
             docker-compose pull
             
-            # 6. 최신 이미지로 컨테이너를 다시 시작합니다.
-            docker-compose up -d
+            # 6. 최신 이미지로 모든 컨테이너를 다시 시작합니다.
+            #    --remove-orphans 옵션은 더 이상 사용하지 않는 컨테이너를 제거합니다.
+            docker-compose up -d --remove-orphans
             
-            # 7. 불필요하게 쌓인 옛날 도커 이미지를 정리하여 서버 용량을 확보합니다.
+            # 7. 사용하지 않는 옛날 도커 이미지를 정리하여 서버 용량을 확보합니다.
             docker image prune -af
