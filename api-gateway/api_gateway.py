@@ -97,11 +97,12 @@ class APIGateway:
             lb_resp, user_resp, auth_resp = responses
 
             # 각 응답을 JSON으로 변환하고, 실패 시 빈 객체로 처리합니다.
-            lb_stats = await lb_resp.json() if isinstance(lb_resp, web.ClientResponse) and lb_resp.status == 200 else {}
-            user_stats = await user_resp.json() if isinstance(user_resp,
-                                                              web.ClientResponse) and user_resp.status == 200 else {}
-            auth_stats = await auth_resp.json() if isinstance(auth_resp,
-                                                              web.ClientResponse) and auth_resp.status == 200 else {}
+            lb_stats = (await lb_resp.json()) if isinstance(lb_resp,
+                                                            web.ClientResponse) and lb_resp.status == 200 else {}
+            user_stats = (await user_resp.json()) if isinstance(user_resp,
+                                                                web.ClientResponse) and user_resp.status == 200 else {}
+            auth_stats = (await auth_resp.json()) if isinstance(auth_resp,
+                                                                web.ClientResponse) and auth_resp.status == 200 else {}
 
             # API 게이트웨이 자체 통계 계산
             uptime = time.time() - self.start_time
