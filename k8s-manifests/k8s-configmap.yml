@@ -1,55 +1,25 @@
-# k8s-manifests/user-service-deployment.yml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: user-service-deployment
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: user-service
-  template:
-    metadata:
-      labels:
-        app: user-service
-    spec:
-      containers:
-      - name: user-service-container
-        image: dongju101/titanium-user-service:latest # CI/CD에서 빌드할 새 이미지
-        ports:
-        - containerPort: 8001
-        envFrom: # Redis 접속 정보 등을 ConfigMap에서 가져옴
-        - configMapRef:
-            name: app-config
-        volumeMounts: # 데이터베이스 파일을 저장할 영구 볼륨 마운트
-        - name: user-data
-          mountPath: /data
-      volumes:
-      - name: user-data
-        persistentVolumeClaim:
-          claimName: user-service-data-pvc # 아래에서 정의할 PVC
----
-# k8s-manifests/user-service-service.yml
+# k8s-manifests/k8s-configmap.yml
 apiVersion: v1
-kind: Service
+kind: ConfigMap
 metadata:
-  name: user-service
-spec:
-  type: ClusterIP # 내부 통신용
-  selector:
-    app: user-service
-  ports:
-  - port: 8001
-    targetPort: 8001
----
-# k8s-manifests/user-service-pvc.yml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: user-service-data-pvc
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
+  # 모든 서비스가 공통으로 참조할 ConfigMap의 이름입니다.
+  name: app-config
+data:
+  # --- Load Balancer가 사용하는 환경 변수 ---
+  # API_GATEWAY_URL과 DASHBOARD_UI_URL은 load_balancer/config.py에서 사용됩니다.
+  API_GATEWAY_URL: "http://api-gateway-service:8000"
+  DASHBOARD_UI_URL: "http://dashboard-ui-service:80"
+
+  # --- API Gateway가 사용하는 환경 변수 ---
+  # api_gateway/config.py에서 이 주소들을 사용하여 다른 서비스를 호출합니다.
+  USER_SERVICE_URL: "http://user-service:8001"
+  AUTH_SERVICE_URL: "http://auth-service:8002"
+
+  # --- User Service가 사용하는 환경 변수 ---
+  # user-service/config.py에서 Redis에 접속하기 위해 이 값을 사용합니다.
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+
+  # --- Auth Service가 사용하는 환경 변수 ---
+  # auth-service/config.py에서 User Service를 호출하기 위해 이 값을 사용합니다.
+  # USER_SERVICE_URL은 이미 위에서 정의되었으므로, Auth Service도 동일한 값을 참조합니다.
