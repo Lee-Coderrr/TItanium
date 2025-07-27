@@ -1,6 +1,3 @@
-// ==================================
-// 설정 (Configuration)
-// ==================================
 const config = {
     // 상대 경로를 사용하여 어떤 환경에서든 동일하게 동작하도록 합니다.
     apiEndpoint: '',
@@ -39,18 +36,13 @@ const apiService = {
     async fetchAllStats() {
         if (!this.monitoringEnabled) return;
         try {
-            const [lbResponse, apiResponse] = await Promise.all([
-                fetch(config.apiEndpoint + '/lb-stats'),
-                fetch(config.apiEndpoint + '/stats')
-            ]);
-
-            if (!lbResponse.ok || !apiResponse.ok) {
-                throw new Error('Network response was not ok');
+            const response = await fetch(config.apiEndpoint + '/stats', { headers: this._getAuthHeaders() });
+            if (!response.ok) {
+               throw new Error("Backend communication error");
             }
-
-            const lbStats = await lbResponse.json();
-            const apiStats = await apiResponse.json();
-            eventBus.publish('statsUpdated', { lbStats, apiStats, isFetchSuccess: true });
+            const combinedStats = await response.json();
+            // 이벤트 버스는 이제 모든 정보가 담긴 단일 stats 객체를 전달합니다.
+            eventBus.publish('statsUpdated', { stats: combinedStats, isFetchSuccess: true });
         } catch (error) {
             eventBus.publish('fetchError', { error, isFetchSuccess: false });
         }

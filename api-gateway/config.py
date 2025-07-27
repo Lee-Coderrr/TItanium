@@ -15,6 +15,7 @@ class ServiceUrls:
     # 환경 변수가 없을 경우, Docker Compose 환경에서 사용할 기본 서비스 이름을 사용합니다.
     auth_service: str = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8002')
     user_service: str = os.getenv('USER_SERVICE_URL', 'http://user-service:8001')
+    load_balancer: str = os.getenv('LOAD_BALANCER_URL', 'http://load-balancer-service:7100')
 
 class Config:
     """전체 설정을 관리하는 클래스"""
