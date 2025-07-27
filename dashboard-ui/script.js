@@ -39,12 +39,13 @@ const apiService = {
     async fetchAllStats() {
         if (!this.monitoringEnabled) return;
         try {
-            // [수정!] 더 이상 필요 없는 headers 부분을 삭제했습니다.
+            // [수정!] 이제 API 게이트웨이의 통합 /stats 엔드포인트 하나만 호출합니다.
             const response = await fetch(config.apiEndpoint + '/stats');
             if (!response.ok) {
                throw new Error("Backend communication error");
             }
             const combinedStats = await response.json();
+            // 모든 정보가 담긴 단일 stats 객체를 전달합니다.
             eventBus.publish('statsUpdated', { stats: combinedStats, isFetchSuccess: true });
         } catch (error) {
             eventBus.publish('fetchError', { error, isFetchSuccess: false });
@@ -52,8 +53,7 @@ const apiService = {
     },
     async resetAllStats() {
         try {
-            // 참고: 이 기능은 현재 아키텍처에서 모든 서비스의 상태를 리셋해야 하므로
-            // 실제 구현은 더 복잡할 수 있습니다. 지금은 API 게이트웨이에 요청만 보냅니다.
+            // 참고: 리셋 기능은 현재 아키텍처에서 더 복잡한 구현이 필요할 수 있습니다.
             await fetch(config.apiEndpoint + '/reset-stats', { method: 'POST' });
             return true;
         } catch (error) {
@@ -95,6 +95,7 @@ const chartModule = {
             data: { labels: [], datasets: [{ data: [], backgroundColor: '#3b82f6' }] },
             options: commonOptions
         });
+        // [수정!] 단일 stats 객체를 받도록 수정합니다.
         eventBus.subscribe('statsUpdated', ({ stats }) => this.update(stats));
         eventBus.subscribe('reset', () => this.reset());
     },
@@ -110,6 +111,7 @@ const chartModule = {
             }
             chart.update('none');
         };
+        // API 게이트웨이가 취합한 데이터 구조에 맞게 접근합니다.
         updateChart(this.charts.responseTime, stats?.load_balancer?.avg_response_time_ms || 0);
         updateChart(this.charts.throughput, stats?.load_balancer?.requests_per_second || 0);
     },
@@ -138,6 +140,7 @@ const statusModule = {
             cacheHitRate: document.getElementById('cache-hit-rate'), activeSessions: document.getElementById('active-sessions'),
             serverList: document.getElementById('server-list'),
         };
+        // [수정!] 단일 stats 객체를 받도록 수정합니다.
         eventBus.subscribe('statsUpdated', ({ stats, isFetchSuccess }) => this.update(stats, isFetchSuccess));
         eventBus.subscribe('fetchError', ({ isFetchSuccess }) => this.update(null, isFetchSuccess));
     },
@@ -148,6 +151,7 @@ const statusModule = {
             this.updateServerList(null, false);
             return;
         }
+        // API 게이트웨이가 취합한 데이터 구조에 맞게 접근합니다.
         const lbData = stats.load_balancer;
         const healthData = stats.health_check;
         this.elements.totalRequests.textContent = (lbData?.total_requests || 0).toLocaleString();
@@ -196,7 +200,7 @@ const statusModule = {
             const isHealthy = stats.healthy;
             const statusClass = isHealthy ? 'status-healthy' : 'status-error';
             const responseTime = stats.avg_response_time ? `${stats.avg_response_time.toFixed(1)}ms` : 'N/A';
-            li.innerHTML = `<span><span class="status-indicator ${statusClass}"></span>API Gateway</span><span>${isHealthy ? responseTime : 'Offline'}</span>`;
+            li.innerHTML = `<span><span class.="status-indicator ${statusClass}"></span>API Gateway</span><span>${isHealthy ? responseTime : 'Offline'}</span>`;
             serverListElement.appendChild(li);
         });
     }
@@ -207,6 +211,7 @@ const statusModule = {
 // ==================================
 const alertModule = {
     init() {
+        // [수정!] 단일 stats 객체를 받도록 수정합니다.
         eventBus.subscribe('statsUpdated', ({ stats }) => this.checkAlerts(stats));
     },
     checkAlerts(stats) {
