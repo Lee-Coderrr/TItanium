@@ -19,8 +19,6 @@ async def handle_health(request: web.Request) -> web.Response:
     is_healthy = db_health['status'] == 'healthy' and cache_health['status'] == 'healthy'
     return web.json_response({'status': 'healthy' if is_healthy else 'degraded'})
 
-
-# [추가!] User Service의 통계 정보를 반환하는 핸들러
 async def handle_stats(request: web.Request) -> web.Response:
     db_stats = db_service.get_statistics()
     cache_stats = await cache_service.get_stats()
@@ -46,12 +44,25 @@ async def get_user_by_id(request: web.Request) -> web.Response:
     return web.json_response(user)
 
 
+# [추가!] 사용자 이름으로 사용자를 조회하는 핸들러
+async def get_user_by_username(request: web.Request) -> web.Response:
+    username = request.match_info['username']
+    # 캐싱은 ID 기반으로만 하므로 여기서는 직접 DB를 조회합니다.
+    user = db_service.get_user(username)
+    if not user:
+        return web.json_response({'error': 'User not found'}, status=404)
+    return web.json_response(user)
+
+
 # --- 애플리케이션 설정 및 실행 ---
 async def main():
     app = web.Application()
     app.router.add_get("/health", handle_health)
-    app.router.add_get("/stats", handle_stats)  # [추가!] stats 라우트
+    app.router.add_get("/stats", handle_stats)
     app.router.add_get("/users/id/{user_id}", get_user_by_id)
+    # [추가!] username 조회 라우트를 추가합니다.
+    app.router.add_get("/users/username/{username}", get_user_by_username)
+
 
     runner = web.AppRunner(app)
     await runner.setup()
