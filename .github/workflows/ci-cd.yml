@@ -22,12 +22,12 @@ jobs:
       # --- 각 마이크로서비스 이미지 빌드 및 푸시 ---
       - name: Build and push load-balancer
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-lb:latest ./load_balancer
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-lb:latest ./load-balancer
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-lb:latest
 
       - name: Build and push api-gateway
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest ./api_gateway
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest ./api-gateway
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest
 
       - name: Build and push user-service
