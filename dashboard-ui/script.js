@@ -112,8 +112,8 @@ const chartModule = {
             chart.update('none');
         };
         // API 게이트웨이가 취합한 데이터 구조에 맞게 접근합니다.
-        updateChart(this.charts.responseTime, stats?.load_balancer?.avg_response_time_ms || 0);
-        updateChart(this.charts.throughput, stats?.load_balancer?.requests_per_second || 0);
+        updateChart(this.charts.responseTime, stats?.['load-balancer']?.avg_response_time_ms || 0);
+        updateChart(this.charts.throughput, stats?.['load-balancer']?.requests_per_second || 0);
     },
     reset() {
         Object.values(this.charts).forEach(chart => {
@@ -152,7 +152,7 @@ const statusModule = {
             return;
         }
         // API 게이트웨이가 취합한 데이터 구조에 맞게 접근합니다.
-        const lbData = stats.load_balancer;
+        const lbData = stats['load-balancer'];
         const healthData = stats.health_check;
         this.elements.totalRequests.textContent = (lbData?.total_requests || 0).toLocaleString();
         this.elements.successRate.textContent = `${(lbData?.success_rate || 0).toFixed(1)}%`;
