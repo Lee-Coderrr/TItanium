@@ -1,55 +1,28 @@
-# k8s-manifests/user-service-deployment.yml
+# k8s-manifests/auth-service-deployment.yml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-service-deployment
+  name: auth-service-deployment
 spec:
+  # 이 서비스를 몇 개의 파드로 실행할지 결정합니다.
   replicas: 1
   selector:
     matchLabels:
-      app: user-service
+      app: auth-service
   template:
     metadata:
+      # 파드에 'app: auth-service' 라는 이름표를 붙입니다.
       labels:
-        app: user-service
+        app: auth-service
     spec:
       containers:
-      - name: user-service-container
-        image: dongju101/titanium-user-service:latest # CI/CD에서 빌드할 새 이미지
+      - name: auth-service-container
+        # CI/CD 파이프라인에서 빌드할 Docker 이미지 이름입니다.
+        image: dongju101/titanium-auth-service:latest
         ports:
-        - containerPort: 8001
-        envFrom: # Redis 접속 정보 등을 ConfigMap에서 가져옴
-        - configMapRef:
-            name: app-config
-        volumeMounts: # 데이터베이스 파일을 저장할 영구 볼륨 마운트
-        - name: user-data
-          mountPath: /data
-      volumes:
-      - name: user-data
-        persistentVolumeClaim:
-          claimName: user-service-data-pvc # 아래에서 정의할 PVC
----
-# k8s-manifests/user-service-service.yml
-apiVersion: v1
-kind: Service
-metadata:
-  name: user-service
-spec:
-  type: ClusterIP # 내부 통신용
-  selector:
-    app: user-service
-  ports:
-  - port: 8001
-    targetPort: 8001
----
-# k8s-manifests/user-service-pvc.yml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: user-service-data-pvc
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
+        - containerPort: 8002 # auth-service는 8002번 포트를 사용합니다.
+        envFrom:
+          # 'app-config' ConfigMap의 모든 데이터를 환경 변수로 주입합니다.
+          # (USER_SERVICE_URL 등을 가져오기 위함)
+          - configMapRef:
+              name: app-config

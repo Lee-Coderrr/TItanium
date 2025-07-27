@@ -28,28 +28,3 @@ spec:
       - name: user-data
         persistentVolumeClaim:
           claimName: user-service-data-pvc # 아래에서 정의할 PVC
----
-# k8s-manifests/user-service-service.yml
-apiVersion: v1
-kind: Service
-metadata:
-  name: user-service
-spec:
-  type: ClusterIP # 내부 통신용
-  selector:
-    app: user-service
-  ports:
-  - port: 8001
-    targetPort: 8001
----
-# k8s-manifests/user-service-pvc.yml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: user-service-data-pvc
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
