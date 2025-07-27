@@ -1,0 +1,25 @@
+# auth-service/Dockerfile
+
+# 1. 베이스 이미지 설정 (다른 서비스와 동일하게 Python 3.11-slim 사용)
+FROM python:3.11-slim
+
+# 2. 작업 디렉토리 설정
+WORKDIR /app
+
+# 3. 의존성 파일 복사 및 설치
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 4. 프로젝트의 모든 소스 코드 복사
+COPY . .
+
+# 5. 서비스 포트 노출 (config.py에 정의된 8002 포트)
+EXPOSE 8002
+
+# 6. 컨테이너 실행 시 시작될 메인 스크립트 지정
+CMD ["python", "main.py"]
+```
+# auth-service/requirements.txt
+
+# aiohttp: 웹 서버 및 다른 서비스와 통신하기 위한 HTTP 클라이언트
+aiohttp

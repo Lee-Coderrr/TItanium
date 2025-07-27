@@ -1,4 +1,4 @@
-# load_balancer/load_balancer.py
+# load-balancer/load-balancer.py
 import asyncio
 import time
 from datetime import datetime
@@ -94,7 +94,7 @@ class ReverseProxy:
         avg_response_time_ms = (sum(self.api_response_times) / len(
             self.api_response_times)) * 1000 if self.api_response_times else 0
         stats = {
-            'load_balancer': {'total_requests': self.total_requests, 'success_rate': round(success_rate, 2),
+            'load-balancer': {'total_requests': self.total_requests, 'success_rate': round(success_rate, 2),
                               'requests_per_second': round(rps, 2),
                               'avg_response_time_ms': round(avg_response_time_ms, 2)},
             'health_check': {'healthy_servers': 1 if self.health_checker.is_healthy else 0, 'server_details': {

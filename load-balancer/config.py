@@ -1,4 +1,4 @@
-# load_balancer/config.py
+# load-balancer/config.py
 import os
 from dataclasses import dataclass
 
