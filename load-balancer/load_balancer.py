@@ -51,6 +51,9 @@ class ReverseProxy:
         self.request_timestamps.append(time.time())
         path = request.path
 
+        if path == '/lb-health':
+            return await self.handle_lb_health(request)
+
         if path == '/lb-stats':
             return await self.get_proxy_stats(request)
 
@@ -102,6 +105,10 @@ class ReverseProxy:
                                          'avg_response_time': round(avg_response_time_ms, 2)}}},
             'timestamp': datetime.now().isoformat()}
         return web.json_response(stats)
+
+    async def handle_lb_health(self, request: web.Request) -> web.Response:
+        """Load Balancer 자체의 상태를 반환하는 간단한 핸들러"""
+        return web.json_response({'status': 'healthy', 'service': 'load-balancer'})
 
 
 async def main():

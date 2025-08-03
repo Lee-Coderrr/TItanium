@@ -1,0 +1,16 @@
+# API Gateway의 복제본 수를 3으로 설정
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway-deployment
+spec:
+  replicas: 3
+
+---
+# User Service의 복제본 수를 2로 설정
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service-deployment
+spec:
+  replicas: 2

@@ -1,0 +1,90 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: titanium-base
+
+resources:
+- api-gateway-deployment.yaml
+- api-gateway-service.yaml
+- auth-service-deployment.yaml
+- auth-service-service.yaml
+- dashboard-ui-deployment.yaml
+- dashboard-ui-service.yaml
+- load-balancer-deployment.yaml
+- load-balancer-service.yaml
+- redis-deployment.yaml
+- redis-service.yaml
+- user-service-deployment.yaml
+- user-service-service.yaml
+- user-service-pvc.yaml
+- configmap.yaml
+- secret.yaml
+- analytics-service-deployment.yaml
+- analytics-service-service.yaml
+
+# 🔥 최신 문법: labels 필드 (올바른 사용)
+labels:
+- pairs:
+    app.kubernetes.io/name: titanium
+    app.kubernetes.io/version: v1.0.0
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: titanium-platform
+  includeSelectors: false  # selector에는 적용하지 않음 (안전)
+  includeTemplates: true   # template에는 적용
+
+commonAnnotations:
+  app.kubernetes.io/created-by: kustomize
+  titanium.io/environment: base
+  titanium.io/team: platform
+  titanium.io/version: "1.0.0"
+  titanium.io/build-date: "2024-01-01T00:00:00Z"
+
+replacements:
+- source:
+    kind: ConfigMap
+    name: app-config
+    fieldPath: data.ENVIRONMENT
+  targets:
+  - select:
+      kind: Deployment
+      name: api-gateway-deployment
+    fieldPaths:
+    - spec.template.spec.containers.[name=api-gateway-container].env.[name=CURRENT_ENV].value
+  - select:
+      kind: Deployment
+      name: load-balancer-deployment
+    fieldPaths:
+    - spec.template.spec.containers.[name=load-balancer-container].env.[name=CURRENT_ENV].value
+  - select:
+      kind: Deployment
+      name: auth-service-deployment
+    fieldPaths:
+    - spec.template.spec.containers.[name=auth-service-container].env.[name=CURRENT_ENV].value
+  - select:
+      kind: Deployment
+      name: user-service-deployment
+    fieldPaths:
+    - spec.template.spec.containers.[name=user-service-container].env.[name=CURRENT_ENV].value
+
+- source:
+    kind: Service
+    name: api-gateway-service
+    fieldPath: metadata.name
+  targets:
+  - select:
+      kind: ConfigMap
+      name: app-config
+    fieldPaths:
+    - data.API_GATEWAY_SERVICE_NAME
+
+- source:
+    kind: Service
+    name: load-balancer-service
+    fieldPath: metadata.name
+  targets:
+  - select:
+      kind: ConfigMap
+      name: app-config
+    fieldPaths:
+    - data.LOAD_BALANCER_SERVICE_NAME

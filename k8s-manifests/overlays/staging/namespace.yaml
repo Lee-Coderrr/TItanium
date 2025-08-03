@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: titanium-staging
+  labels:
+    # Kubernetes 표준 레이블
+    app.kubernetes.io/name: titanium
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: titanium-platform
+    app.kubernetes.io/version: v1.0.0
+
+    # 환경별 레이블
+    environment: staging
+    tier: testing
+
+    # 비용 및 관리 레이블
+    titanium.io/cost-center: qa
+    titanium.io/team: qa-team
+    titanium.io/monitoring: enabled
+    titanium.io/backup: enabled
+
+  annotations:
+    # 환경 정보
+    titanium.io/environment: staging
+    titanium.io/purpose: "Staging environment for testing and validation"
+    titanium.io/maintainer: qa-team
+    titanium.io/created-date: "2024-01-01T00:00:00Z"
+
+    # 테스트 관련 설정
+    titanium.io/debug-enabled: "false"
+    titanium.io/resource-profile: standard
+    titanium.io/auto-scaling: "false"
+    titanium.io/performance-testing: "enabled"
+    staging.titanium.io/load-testing: "enabled"
+
+    # 보안 및 네트워크
+    titanium.io/network-policy: standard
+    titanium.io/ingress-enabled: "true"
+    titanium.io/ssl-enabled: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+
+    # 모니터링 및 관찰성
+    titanium.io/metrics-enabled: "true"
+    titanium.io/tracing-enabled: "true"
+    titanium.io/logging-level: "warn"
+    prometheus.io/scrape: "true"
+
+    # 리소스 관리
+    titanium.io/resource-quota: "50Gi memory, 20 CPU"
+    titanium.io/storage-class: "gp2"
+
+    # 백업 및 복구
+    titanium.io/backup-schedule: "daily"
+    titanium.io/retention-policy: "7d"
+
+    # 설명
+    kubernetes.io/description: "Staging environment for Titanium application testing and validation"

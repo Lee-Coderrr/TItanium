@@ -12,6 +12,7 @@ class ServerConfig:
 class AuthConfig:
     """인증 관련 설정"""
     session_timeout: int = 86400  # 세션 유효 시간 (24시간)
+    internal_api_secret: str = os.getenv('INTERNAL_API_SECRET', 'default-secret-key')
 
 @dataclass
 class ServiceUrls:
@@ -24,6 +25,9 @@ class Config:
         self.server = ServerConfig()
         self.auth = AuthConfig()
         self.services = ServiceUrls()
+        self.INTERNAL_API_SECRET = self.auth.internal_api_secret
+        self.USER_SERVICE_URL = self.services.user_service
+
 
 # 다른 파일에서 쉽게 임포트할 수 있도록 전역 인스턴스 생성
 config = Config()

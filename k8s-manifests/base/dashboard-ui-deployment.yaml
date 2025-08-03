@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-ui-deployment
+  labels:
+    app: dashboard-ui
+    component: frontend
+    app.kubernetes.io/name: titanium
+    app.kubernetes.io/component: dashboard-ui
+spec:
+  replicas: 1  # overlay에서 변경
+  selector:
+    matchLabels:
+      app: dashboard-ui
+  template:
+    metadata:
+      labels:
+        app: dashboard-ui
+        component: frontend
+        app.kubernetes.io/name: titanium
+        app.kubernetes.io/component: dashboard-ui
+    spec:
+      containers:
+      - name: dashboard-ui-container
+        image: dongju101/titanium-ui:latest  # overlay에서 태그 변경
+        ports:
+        - containerPort: 80
+          name: http
+        env:
+        - name: SERVICE_NAME
+          value: "dashboard-ui"
+        - name: SERVICE_PORT
+          value: "80"
+        - name: NGINX_PORT
+          value: "80"
+        resources:  # overlay에서 오버라이드
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 101  # nginx user
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: nginx-cache
+          mountPath: /var/cache/nginx
+        - name: nginx-run
+          mountPath: /var/run
+      volumes:
+      - name: nginx-cache
+        emptyDir: {}
+      - name: nginx-run
+        emptyDir: {}

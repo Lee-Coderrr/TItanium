@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 'base' 설정을 기준으로 사용합니다.
+resources:
+  - ../../base
+
+# 'base' 설정 위에 아래 패치를 덧씌웁니다.
+patches:
+  - path: replicas-patch.yaml
+    target:
+      kind: Deployment
+      # 'api-gateway-deployment' 또는 'user-service-deployment'에 적용
+      name: "(api-gateway|user-service)-deployment"
+      # 정규식을 사용하기 위한 어노테이션
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled

@@ -1,0 +1,149 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: titanium-staging
+  annotations:
+    titanium.io/environment: staging
+    titanium.io/purpose: testing
+    titanium.io/maintainer: qa-team
+
+# 🔥 namespace.yaml 추가
+resources:
+- ../../base
+- namespace.yaml              # ← Namespace 리소스 추가
+- ingress.yaml
+
+# 환경별 labels
+labels:
+- pairs:
+    environment: staging
+    tier: testing
+    titanium.io/cost-center: qa
+    titanium.io/monitoring: enabled
+    titanium.io/security-scan: "true"
+  includeSelectors: false
+  includeTemplates: true
+
+# 환경별 annotations
+commonAnnotations:
+  titanium.io/security-level: medium
+  titanium.io/resource-profile: standard
+  titanium.io/backup-enabled: "true"
+  titanium.io/ssl-enabled: "true"
+  cert-manager.io/cluster-issuer: letsencrypt-staging
+
+namePrefix: staging-
+nameSuffix: -stg
+namespace: titanium-staging
+
+# 스테이징용 적당한 replica 설정
+replicas:
+- name: api-gateway-deployment
+  count: 2
+- name: auth-service-deployment
+  count: 2
+- name: dashboard-ui-deployment
+  count: 2
+- name: load-balancer-deployment
+  count: 2
+- name: user-service-deployment
+  count: 1
+- name: redis-deployment
+  count: 1
+
+# 스테이징 전용 검증된 이미지 태그
+images:
+- name: dongju101/titanium-api
+  newTag: staging-v1.2.0
+- name: dongju101/titanium-auth-service
+  newTag: staging-v1.2.0
+- name: dongju101/titanium-ui
+  newTag: staging-v1.2.0
+- name: dongju101/titanium-lb
+  newTag: staging-v1.2.0
+- name: dongju101/titanium-user-service
+  newTag: staging-v1.2.0
+- name: redis
+  newTag: 7-alpine
+
+# 스테이징 환경용 ConfigMap 설정
+configMapGenerator:
+- name: app-config
+  behavior: merge
+  literals:
+  - ENVIRONMENT=staging
+  - LOG_LEVEL=WARN
+  - LOG_FORMAT=json
+  - DEBUG_MODE=false
+  - METRICS_ENABLED=true
+  - TRACING_ENABLED=true
+  - CORS_ALLOWED_ORIGINS=https://staging.titanium.example.com,https://staging-api.titanium.example.com
+  - RATE_LIMIT_ENABLED=true
+  - RATE_LIMIT_REQUESTS=200
+  - RATE_LIMIT_WINDOW=60
+  - PROMETHEUS_ENABLED=true
+  - PROMETHEUS_PORT=9090
+  - JAEGER_ENABLED=true
+  - JAEGER_ENDPOINT=http://jaeger-collector.monitoring.svc.cluster.local:14268/api/traces
+  - HEALTH_CHECK_INTERVAL=30
+  - REDIS_TIMEOUT=3000
+  - TOKEN_EXPIRY=3600
+  - REFRESH_TOKEN_EXPIRY=86400
+
+# 스테이징 환경용 Secret
+secretGenerator:
+- name: app-secrets
+  behavior: merge
+  literals:
+  - INTERNAL_API_SECRET=c3RhZ2luZy1zZWN1cmUtYXBpLWtleS0yMDI0LXYx
+  - JWT_SECRET_KEY=c3RhZ2luZy1qd3Qtc2lnbmluZy1rZXktdmVyeS1zZWN1cmUtMjAyNA==
+  - DB_ENCRYPTION_KEY=c3RhZ2luZy1kYi1lbmNyeXB0aW9uLWtleS0yMDI0
+  - REDIS_PASSWORD=c3RhZ2luZy1yZWRpcy1wYXNzd29yZC1zZWN1cmU=
+  - EXTERNAL_API_KEY=c3RhZ2luZy1leHRlcm5hbC1hcGkta2V5LXNlY3VyZQ==
+
+patches:
+# Load Balancer를 LoadBalancer 타입으로 설정
+- target:
+    kind: Service
+    name: load-balancer-service
+  patch: |-
+    - op: replace
+      path: /spec/type
+      value: LoadBalancer
+    - op: add
+      path: /metadata/annotations
+      value:
+        service.beta.kubernetes.io/aws-load-balancer-type: "classic"
+        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+        service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+# API Gateway 서비스도 LoadBalancer로 설정
+- target:
+    kind: Service
+    name: api-gateway-service
+  patch: |-
+    - op: replace
+      path: /spec/type
+      value: LoadBalancer
+
+# 스테이징용 고급 replacements
+replacements:
+- source:
+    kind: Service
+    name: load-balancer-service
+    fieldPath: status.loadBalancer.ingress.0.hostname
+  targets:
+  - select:
+      kind: Ingress
+      name: titanium-ingress
+    fieldPaths:
+    - spec.rules.0.host
+- source:
+    kind: ConfigMap
+    name: app-config
+    fieldPath: data.ENVIRONMENT
+  targets:
+  - select:
+      kind: Deployment
+    fieldPaths:
+    - spec.template.metadata.annotations.[titanium.io/environment]

@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: titanium-production
+  labels:
+    # Kubernetes 표준 레이블
+    app.kubernetes.io/name: titanium
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: titanium-platform
+    app.kubernetes.io/version: v1.0.0
+
+    # 환경별 레이블
+    environment: production
+    tier: production
+
+    # 비용 및 관리 레이블
+    titanium.io/cost-center: engineering
+    titanium.io/team: platform-team
+    titanium.io/monitoring: enabled
+    titanium.io/backup: enabled
+    titanium.io/high-availability: "true"
+
+  annotations:
+    # 환경 정보
+    titanium.io/environment: production
+    titanium.io/purpose: "Production environment for live Titanium application"
+    titanium.io/maintainer: platform-team
+    titanium.io/created-date: "2024-01-01T00:00:00Z"
+
+    # 프로덕션 설정
+    titanium.io/debug-enabled: "false"
+    titanium.io/resource-profile: high-performance
+    titanium.io/auto-scaling: "true"
+    titanium.io/sla: "99.9%"
+    prod.titanium.io/disaster-recovery: "enabled"
+
+    # 보안 및 컴플라이언스
+    titanium.io/network-policy: strict
+    titanium.io/ingress-enabled: "true"
+    titanium.io/ssl-enabled: "true"
+    titanium.io/security-scanning: "enabled"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+    # 모니터링 및 관찰성
+    titanium.io/metrics-enabled: "true"
+    titanium.io/tracing-enabled: "true"
+    titanium.io/logging-level: "error"
+    titanium.io/alerting: "enabled"
+    prometheus.io/scrape: "true"
+
+    # 리소스 관리
+    titanium.io/resource-quota: "200Gi memory, 100 CPU"
+    titanium.io/storage-class: "gp3"
+
+    # 백업 및 복구
+    titanium.io/backup-schedule: "hourly"
+    titanium.io/retention-policy: "30d"
+    titanium.io/cross-region-backup: "enabled"
+
+    # 컴플라이언스
+    titanium.io/compliance: "SOC2,ISO27001"
+    titanium.io/data-classification: "confidential"
+
+    # 설명
+    kubernetes.io/description: "Production environment for Titanium application serving live traffic"

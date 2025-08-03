@@ -200,7 +200,7 @@ const statusModule = {
             const isHealthy = stats.healthy;
             const statusClass = isHealthy ? 'status-healthy' : 'status-error';
             const responseTime = stats.avg_response_time ? `${stats.avg_response_time.toFixed(1)}ms` : 'N/A';
-            li.innerHTML = `<span><span class.="status-indicator ${statusClass}"></span>API Gateway</span><span>${isHealthy ? responseTime : 'Offline'}</span>`;
+            li.innerHTML = `<span><span class="status-indicator ${statusClass}"></span>API Gateway</span><span>${isHealthy ? responseTime : 'Offline'}</span>`;
             serverListElement.appendChild(li);
         });
     }

@@ -22,5 +22,6 @@ class Config:
         self.server = ServerConfig()
         self.database = DatabaseConfig()
         self.cache = CacheConfig()
+        self.REDIS_URL = f"redis://{self.cache.host}:{self.cache.port}"
 
 config = Config()

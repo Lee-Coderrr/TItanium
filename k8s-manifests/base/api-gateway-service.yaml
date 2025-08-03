@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-service
+  labels:
+    app: api-gateway
+    component: gateway
+    app.kubernetes.io/component: api-gateway
+    app.kubernetes.io/layer: application
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "false"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP  # overlay에서 변경 가능
+  selector:
+    app: api-gateway
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: http
+    name: http
+  sessionAffinity: None
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack

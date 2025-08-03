@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: load-balancer-service
+  labels:
+    app: load-balancer
+    component: lb
+    app.kubernetes.io/component: load-balancer
+    app.kubernetes.io/layer: infrastructure
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "false"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "7100"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP  # overlay에서 NodePort/LoadBalancer로 변경
+  selector:
+    app: load-balancer
+  ports:
+  - protocol: TCP
+    port: 7100
+    targetPort: http
+    name: http
+  sessionAffinity: None
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack

@@ -1,97 +1,61 @@
-# api-gateway/cache_service.py
-import asyncio
-import logging
-import json
-from typing import Any, Optional, Dict
-
 import redis.asyncio as redis
+import json
+import logging
 from config import config
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class CacheService:
-    """레디스 기반 비동기 캐시 서비스"""
-
     def __init__(self):
-        self.logger = logging.getLogger('CacheService')
         try:
-            # 레디스 클라이언트 초기화
-            self.redis_client = redis.Redis(
-                host=config.cache.host,
-                port=config.cache.port,
-                db=0,
-                decode_responses=True  # 응답을 자동으로 UTF-8로 디코딩
-            )
-            self.logger.info(f"✅ 레디스 캐시 서비스 초기화 완료: {config.cache.host}:{config.cache.port}")
+            self.redis_client = redis.from_url(config.REDIS_URL, decode_responses=True)
+            logger.info(f"Cache service initialized and connected to Redis at {config.REDIS_URL}")
         except Exception as e:
-            self.logger.error(f"❌ 레디스 클라이언트 초기화 실패: {e}")
+            logger.error(f"Failed to connect to Redis: {e}")
             self.redis_client = None
 
-    async def get(self, key: str) -> Optional[Any]:
-        """캐시에서 값 조회"""
+    async def get_user(self, user_id):
         if not self.redis_client:
             return None
         try:
-            value = await self.redis_client.get(key)
-            if value:
-                # JSON으로 저장된 값을 파이썬 객체로 변환
-                return json.loads(value)
+            user_data = await self.redis_client.get(f"user:{user_id}")
+            if user_data:
+                logger.info(f"Cache HIT for user ID: {user_id}")
+                return json.loads(user_data)
+            logger.info(f"Cache MISS for user ID: {user_id}")
             return None
         except Exception as e:
-            self.logger.error(f"캐시 조회 오류 ({key}): {e}")
+            logger.error(f"Redis GET error for user ID {user_id}: {e}")
             return None
 
-    async def set(self, key: str, value: Any, ttl: int = None) -> bool:
-        """캐시에 값 저장"""
+    async def set_user(self, user_id, user_data, expiration_secs=3600):
+        if not self.redis_client:
+            return
+        try:
+            await self.redis_client.set(
+                f"user:{user_id}",
+                json.dumps(user_data),
+                ex=expiration_secs
+            )
+            logger.info(f"Cached data for user ID: {user_id} with {expiration_secs}s expiry.")
+        except Exception as e:
+            logger.error(f"Redis SET error for user ID {user_id}: {e}")
+
+    async def clear_user(self, user_id):
+        if not self.redis_client:
+            return
+        try:
+            await self.redis_client.delete(f"user:{user_id}")
+            logger.info(f"Cleared cache for user ID: {user_id}")
+        except Exception as e:
+            logger.error(f"Redis DEL error for user ID {user_id}: {e}")
+
+    async def ping(self):
         if not self.redis_client:
             return False
-
-        ttl = ttl or config.cache.default_ttl
         try:
-            # 파이썬 객체를 JSON 문자열로 변환하여 저장
-            serializable_value = json.dumps(value)
-            await self.redis_client.setex(key, ttl, serializable_value)
-            return True
+            return await self.redis_client.ping()
         except Exception as e:
-            self.logger.error(f"캐시 저장 오류 ({key}): {e}")
+            logger.error(f"Redis PING error: {e}")
             return False
-
-    async def get_stats(self) -> Dict:
-        """레디스 서버의 상세 통계 정보를 반환합니다."""
-        if not self.redis_client:
-            return {'error': 'Redis client not initialized'}
-
-        try:
-            info = await self.redis_client.info()
-            hit_count = int(info.get('keyspace_hits', 0))
-            miss_count = int(info.get('keyspace_misses', 0))
-            total_accesses = hit_count + miss_count
-            hit_ratio = (hit_count / total_accesses) * 100 if total_accesses > 0 else 0
-
-            return {
-                'item_count': info.get('db0', {}).get('keys', 0),
-                'total_accesses': total_accesses,
-                'hit_count': hit_count,
-                'miss_count': miss_count,
-                'hit_ratio': round(hit_ratio, 2),
-                'memory_usage_mb': round(info.get('used_memory', 0) / (1024 * 1024), 2),
-                'redis_version': info.get('redis_version'),
-            }
-        except Exception as e:
-            self.logger.error(f"캐시 통계 조회 오류: {e}")
-            return {'error': str(e)}
-
-    async def health_check(self) -> Dict:
-        """레디스 서버 연결 상태 확인"""
-        if not self.redis_client:
-            return {'status': 'unhealthy', 'error': 'Redis client not initialized'}
-        try:
-            if await self.redis_client.ping():
-                return {'status': 'healthy'}
-            else:
-                return {'status': 'unhealthy', 'error': 'Ping failed'}
-        except Exception as e:
-            return {'status': 'unhealthy', 'error': str(e)}
-
-
-# 전역 캐시 서비스 인스턴스
-cache_service = CacheService()

@@ -1,14 +1,31 @@
-# .github/workflows/deploy-to-ec2.yml
-name: Build, Push, and Deploy to EC2
+name: Build, Push, and Deploy to Kubernetes
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ] # main 브랜치에 푸시될 때 워크플로우 실행
 
 jobs:
-  # 1단계: 모든 마이크로서비스의 Docker 이미지를 빌드하고 Docker Hub에 푸시합니다.
+  # ===================================================================
+  # 1단계: 모든 마이크로서비스의 Docker 이미지를 빌드하고 푸시합니다.
+  # - Matrix Strategy를 사용하여 병렬로 실행하여 빌드 시간을 단축합니다.
+  # - Git Commit SHA를 이미지 태그로 사용하여 버전을 명확히 관리합니다.
+  # ===================================================================
   build-and-push:
+    name: Build and Push Images
     runs-on: ubuntu-latest
+    strategy:
+      # ✅ Matrix: 각 서비스에 대한 빌드 작업을 병렬로 실행합니다.
+      matrix:
+        service:
+          - { name: 'load-balancer', image: 'titanium-lb' }
+          - { name: 'api-gateway', image: 'titanium-api' }
+          - { name: 'user-service', image: 'titanium-user-service' }
+          - { name: 'auth-service', image: 'titanium-auth-service' }
+          - { name: 'dashboard-ui', image: 'titanium-ui' }
+          - { name: 'analytics-service', image: 'titanium-analytics-service' }
+          # 새로운 서비스가 추가되면 여기에 한 줄만 추가하면 됩니다.
+          # - { name: 'blog-service', image: 'titanium-blog-service' }
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,69 +36,68 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # --- 각 마이크로서비스 이미지 빌드 및 푸시 ---
-      - name: Build and push load-balancer
+      - name: Build and push Docker image
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-lb:latest ./load-balancer
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-lb:latest
+          # ✅ Git Commit의 짧은 해시값을 이미지 태그로 사용합니다. (예: 1a2b3c4)
+          IMAGE_TAG=${{ github.sha }}
+          
+          echo "Building ${{ matrix.service.name }} with tag ${IMAGE_TAG}"
+          
+          # ✅ Matrix 변수를 사용하여 동적으로 이미지를 빌드하고 푸시합니다.
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service.image }}:${IMAGE_TAG} ./${{ matrix.service.name }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.service.image }}:${IMAGE_TAG}
 
-      - name: Build and push api-gateway
-        run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest ./api-gateway
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-api:latest
-
-      - name: Build and push user-service
-        run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-user-service:latest ./user-service
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-user-service:latest
-
-      - name: Build and push auth-service
-        run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-auth-service:latest ./auth-service
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-auth-service:latest
-
-      - name: Build and push dashboard-ui
-        run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/titanium-ui:latest ./dashboard-ui
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/titanium-ui:latest
-
-  # 2단계: EC2 서버에 접속하여 Docker Compose로 모든 서비스를 실행합니다.
-  deploy-to-ec2:
-    needs: build-and-push
+  # ===================================================================
+  # 2단계: Kubernetes 클러스터에 최신 이미지를 배포합니다.
+  # - Kustomize를 사용하여 프로덕션 환경의 이미지 태그를 업데이트합니다.
+  # - kubectl apply -k 명령어로 안전하게 롤링 업데이트를 실행합니다.
+  # ===================================================================
+  deploy-to-kubernetes:
+    name: Deploy to Kubernetes
+    needs: build-and-push # build-and-push 작업이 성공해야 실행됩니다.
     runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to EC2 instance
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.AWS_HOST }}
-          username: ${{ secrets.AWS_USER }}
-          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
-          script: |
-            # --- EC2 서버에서 실행될 전체 스크립트 ---
-            
-            # 1. GitHub 저장소에 접속하기 위한 호스트 키를 등록합니다.
-            ssh-keyscan github.com >> ~/.ssh/known_hosts
-            
-            # 2. 프로젝트 폴더로 이동하고 최신 코드를 받아옵니다.
-            if [ ! -d "TItanium" ]; then
-              git clone git@github.com:Lee-Coderrr/TItanium.git
-            fi
-            cd TItanium
-            git pull
-            
-            # 3. Docker Hub ID를 환경 변수로 설정합니다.
-            export DOCKER_HUB_ID=${{ secrets.DOCKERHUB_USERNAME }}
 
-            # 4. Docker Hub에 로그인하여 private 이미지를 받을 수 있도록 준비합니다.
-            docker login -u $DOCKER_HUB_ID -p ${{ secrets.DOCKERHUB_TOKEN }}
-            
-            # 5. docker-compose.yml에 정의된 모든 서비스의 최신 이미지를 내려받습니다.
-            #    (이 과정에서 새로 추가된 user-service와 auth-service 이미지도 함께 받아옵니다.)
-            docker-compose pull
-            
-            # 6. 최신 이미지로 모든 컨테이너를 다시 시작합니다.
-            #    --remove-orphans 옵션은 더 이상 사용하지 않는 컨테이너를 제거합니다.
-            docker-compose up -d --remove-orphans
-            
-            # 7. 사용하지 않는 옛날 도커 이미지를 정리하여 서버 용량을 확보합니다.
-            docker image prune -af
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --- 클라우드 환경에 맞게 인증 설정을 구성합니다. (AWS EKS 예시) ---
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Get Kubeconfig for EKS Cluster
+        uses: aws-actions/amazon-eks-get-kubeconfig@v2
+        with:
+          name: ${{ secrets.EKS_CLUSTER_NAME }}
+
+      # --- Kustomize를 사용하여 배포 매니페스트를 업데이트하고 적용합니다. ---
+      - name: Install Kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Update Kubernetes manifests with new image tags
+        run: |
+          # ✅ 배포할 프로덕션 오버레이 디렉터리로 이동합니다.
+          cd k8s-manifests/overlays/production
+          
+          IMAGE_TAG=${{ github.sha }}
+          DOCKER_USER=${{ secrets.DOCKERHUB_USERNAME }}
+          
+          # ✅ Kustomize 명령어로 각 서비스의 이미지 태그를 최신 버전으로 변경합니다.
+          kustomize edit set image $DOCKER_USER/titanium-lb=$DOCKER_USER/titanium-lb:$IMAGE_TAG
+          kustomize edit set image $DOCKER_USER/titanium-api=$DOCKER_USER/titanium-api:$IMAGE_TAG
+          kustomize edit set image $DOCKER_USER/titanium-user-service=$DOCKER_USER/titanium-user-service:$IMAGE_TAG
+          kustomize edit set image $DOCKER_USER/titanium-auth-service=$DOCKER_USER/titanium-auth-service:$IMAGE_TAG
+          kustomize edit set image $DOCKER_USER/titanium-ui=$DOCKER_USER/titanium-ui:$IMAGE_TAG
+          kustomize edit set image $DOCKER_USER/titanium-analytics-service=$DOCKER_USER/titanium-analytics-service:$IMAGE_TAG
+
+      - name: Deploy to Kubernetes cluster
+        run: |
+          # ✅ Kustomize로 빌드된 최종 매니페스트를 클러스터에 적용합니다.
+          #    (쿠버네티스가 알아서 변경된 부분만 롤링 업데이트를 실행합니다.)
+          kubectl apply -k k8s-manifests/overlays/production

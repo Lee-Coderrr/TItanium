@@ -1,0 +1,29 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: titanium-project
+
+build:
+  local:
+    push: false
+  artifacts:
+    - image: dongju101/titanium-auth-service
+      context: auth-service
+    - image: dongju101/titanium-user-service
+      context: user-service
+    - image: dongju101/titanium-api
+      context: api-gateway
+    - image: dongju101/titanium-lb
+      context: load-balancer
+    - image: dongju101/titanium-ui
+      context: dashboard-ui
+    - image: dongju101/titanium-analytics-service
+      context: analytics-service
+
+manifests:
+  kustomize:
+    paths:
+      - k8s-manifests/overlays/local
+
+deploy:
+  kubectl: {}

@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  labels:
+    app: titanium
+    component: config
+    app.kubernetes.io/component: configuration
+    app.kubernetes.io/layer: infrastructure
+  annotations:
+    titanium.io/config-version: "1.0.0"
+    titanium.io/last-updated: "2024-01-01T00:00:00Z"
+data:
+  # === Load Balancer 환경 변수 ===
+  API_GATEWAY_URL: "http://api-gateway-service:8000"
+  DASHBOARD_UI_URL: "http://dashboard-ui-service:80"
+  API_GATEWAY_SERVICE_NAME: "PLACEHOLDER_API_GATEWAY_SERVICE"  # replacements로 치환
+
+  # === API Gateway 환경 변수 ===
+  LOAD_BALANCER_URL: "http://load-balancer-service:7100"
+  USER_SERVICE_URL: "http://user-service:8001"
+  AUTH_SERVICE_URL: "http://auth-service:8002"
+  LOAD_BALANCER_SERVICE_NAME: "PLACEHOLDER_LOAD_BALANCER_SERVICE"  # replacements로 치환
+
+  # === User Service 환경 변수 ===
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_TIMEOUT: "5000"
+  DATABASE_PATH: "/data/users.db"
+
+  # === Auth Service 환경 변수 ===
+  TOKEN_EXPIRY: "3600"
+  REFRESH_TOKEN_EXPIRY: "86400"
+
+  # === 공통 환경 변수 ===
+  ENVIRONMENT: "base"  # overlay에서 변경됨
+  LOG_LEVEL: "INFO"    # overlay에서 변경됨
+  LOG_FORMAT: "json"
+  DEBUG_MODE: "false"
+  METRICS_ENABLED: "false"
+  TRACING_ENABLED: "false"
+  HEALTH_CHECK_INTERVAL: "30"
+
+  # === 애플리케이션 메타데이터 ===
+  APP_NAME: "titanium"
+  APP_VERSION: "1.0.0"
+  BUILD_TIME: "2024-01-01T00:00:00Z"
+
+  # === 보안 설정 ===
+  CORS_ALLOWED_ORIGINS: "*"
+  RATE_LIMIT_ENABLED: "false"
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_WINDOW: "60"
+
+  # === 모니터링 설정 ===
+  PROMETHEUS_ENABLED: "false"
+  PROMETHEUS_PORT: "9090"
+  JAEGER_ENABLED: "false"
+  JAEGER_ENDPOINT: "http://jaeger-collector:14268/api/traces"

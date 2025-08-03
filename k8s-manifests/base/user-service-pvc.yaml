@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: user-service-data-pvc
+  labels:
+    app: user-service
+    component: storage
+    app.kubernetes.io/name: titanium
+    app.kubernetes.io/component: user-service-storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi  # overlay에서 환경별로 변경 가능
+  # storageClassName: standard
+  # overlay에서 환경별 storage class 지정

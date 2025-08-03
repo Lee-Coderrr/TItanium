@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service-deployment
+  labels:
+    app: auth-service
+    component: auth
+    app.kubernetes.io/name: titanium
+    app.kubernetes.io/component: auth-service
+spec:
+  replicas: 1  # overlay에서 변경
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+        component: auth
+        app.kubernetes.io/name: titanium
+        app.kubernetes.io/component: auth-service
+#      annotations:
+#        checksum/config: "{{ .Checksum }}"
+    spec:
+      containers:
+      - name: auth-service-container
+        image: dongju101/titanium-auth-service:latest  # overlay에서 태그 변경
+        ports:
+        - containerPort: 8002
+          name: http
+        envFrom:
+        - configMapRef:
+            name: app-config
+        env:
+        - name: SERVICE_NAME
+          value: "auth-service"
+        - name: SERVICE_PORT
+          value: "8002"
+        - name: CURRENT_ENV
+          value: "PLACEHOLDER_ENV"
+        resources:  # overlay에서 오버라이드
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          readOnlyRootFilesystem: true

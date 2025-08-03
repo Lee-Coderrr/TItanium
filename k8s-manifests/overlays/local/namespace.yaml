@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: titanium-local
+  labels:
+    # Kubernetes 표준 레이블
+    app.kubernetes.io/name: titanium
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: titanium-platform
+    app.kubernetes.io/version: v1.0.0
+
+    # 환경별 레이블
+    environment: local
+    tier: development
+
+    # 비용 및 관리 레이블
+    titanium.io/cost-center: development
+    titanium.io/team: development-team
+    titanium.io/monitoring: disabled
+    titanium.io/backup: disabled
+
+  annotations:
+    # 환경 정보
+    titanium.io/environment: local
+    titanium.io/purpose: "Local development and testing"
+    titanium.io/maintainer: development-team
+    titanium.io/created-date: "2024-01-01T00:00:00Z"
+
+    # 개발 관련 설정
+    titanium.io/debug-enabled: "true"
+    titanium.io/resource-profile: minimal
+    titanium.io/auto-scaling: "false"
+    dev.titanium.io/hot-reload: "true"
+    dev.titanium.io/mock-data: "enabled"
+
+    # 보안 및 네트워크
+    titanium.io/network-policy: relaxed
+    titanium.io/ingress-enabled: "false"
+    titanium.io/ssl-enabled: "false"
+
+    # 리소스 관리
+    titanium.io/resource-quota: "10Gi memory, 5 CPU"
+    titanium.io/storage-class: "standard"
+
+    # 설명
+    kubernetes.io/description: "Local development namespace for Titanium application"

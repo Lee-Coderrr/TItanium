@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-ui-service
+  labels:
+    app: dashboard-ui
+    component: frontend
+    app.kubernetes.io/name: titanium
+    app.kubernetes.io/component: dashboard-ui
+spec:
+  type: ClusterIP
+  selector:
+    app: dashboard-ui
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: http
+    name: http
+  sessionAffinity: None
