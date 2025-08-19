@@ -85,40 +85,26 @@ class APIGateway:
         return await self._proxy_request(profile_url, request)
 
     async def handle_stats(self, request: web.Request):
-        """각 서비스에서 통계를 수집하여 취합합니다."""
         self.request_count += 1
         try:
-            # 모든 서비스의 통계 엔드포인트를 동시에 호출합니다.
             tasks = [
-                self.http_session.get(f"{config.services.load_balancer}/lb-stats"),
                 self.http_session.get(f"{config.services.user_service}/stats"),
-                self.http_session.get(f"{config.services.auth_service}/stats")
+                self.http_session.get(f"{config.services.auth_service}/stats"),
+                self.http_session.get(f"{config.services.blog_service}/stats")
             ]
-            # 한 서비스가 다운되어도 전체가 실패하지 않도록 return_exceptions=True 사용
             responses = await asyncio.gather(*tasks, return_exceptions=True)
-            lb_resp, user_resp, auth_resp = responses
+            user_resp, auth_resp, blog_resp = responses
 
-            # 각 응답을 JSON으로 변환하고, 실패 시 빈 객체로 처리합니다.
-            lb_stats = (await lb_resp.json()) if isinstance(lb_resp,
-                                                            aiohttp.ClientResponse) and lb_resp.status == 200 else {}
-            user_stats = (await user_resp.json()) if isinstance(user_resp,
-                                                                aiohttp.ClientResponse) and user_resp.status == 200 else {}
-            auth_stats = (await auth_resp.json()) if isinstance(auth_resp,
-                                                                aiohttp.ClientResponse) and auth_resp.status == 200 else {}
+            user_stats = (await user_resp.json()) if isinstance(user_resp, aiohttp.ClientResponse) and user_resp.status == 200 else {}
+            auth_stats = (await auth_resp.json()) if isinstance(auth_resp, aiohttp.ClientResponse) and auth_resp.status == 200 else {}
+            blog_stats = (await blog_resp.json()) if isinstance(blog_resp, aiohttp.ClientResponse) and blog_resp.status == 200 else {}
 
-            # API 게이트웨이 자체 통계 계산
             uptime = time.time() - self.start_time
             rps = self.request_count / uptime if uptime > 0 else 0
 
-            # 모든 통계 정보를 하나의 객체로 병합합니다.
             combined_stats = {
-                'api_gateway': {
-                    'total_requests': self.request_count,
-                    'requests_per_second': round(rps, 2)
-                },
-                **lb_stats,
-                **user_stats,
-                **auth_stats
+                'api_gateway': { 'total_requests': self.request_count, 'requests_per_second': round(rps, 2) },
+                **user_stats, **auth_stats, **blog_stats
             }
             return web.json_response(combined_stats)
         except Exception as e:
@@ -129,6 +115,15 @@ class APIGateway:
         """게이트웨이 자체의 상태를 반환합니다."""
         return web.json_response({'status': 'healthy'})
 
+    async def handle_blog_service_requests(self, request: web.Request):
+        """블로그 관련 모든 요청을 경로 변경 없이 blog-service로 전달합니다."""
+        self.request_count += 1
+
+        # 더 이상 경로를 변환할 필요가 없음
+        target_url = f"{config.services.blog_service}{request.path_qs}"
+
+        self.logger.info(f"Forwarding to Blog Service: '{request.path_qs}' -> '{target_url}'")
+        return await self._proxy_request(target_url, request)
 
 # --- 애플리케이션 설정 및 실행 ---
 async def main():
@@ -140,6 +135,9 @@ async def main():
     app.router.add_post("/login", gateway.handle_login)
     app.router.add_get("/profile", gateway.handle_profile)
     app.router.add_get("/stats", gateway.handle_stats)
+
+    app.router.add_route("*", "/blog", gateway.handle_blog_service_requests)
+    app.router.add_route("*", "/blog/{path:.*}", gateway.handle_blog_service_requests)
 
     runner = web.AppRunner(app)
     await runner.setup()

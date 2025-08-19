@@ -19,6 +19,8 @@ build:
       context: dashboard-ui
     - image: dongju101/titanium-analytics-service
       context: analytics-service
+    - image: dongju101/titanium-blog-service
+      context: blog-service
 
 manifests:
   kustomize:

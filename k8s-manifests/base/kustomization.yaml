@@ -18,10 +18,12 @@ resources:
 - user-service-deployment.yaml
 - user-service-service.yaml
 - user-service-pvc.yaml
-- configmap.yaml
-- secret.yaml
 - analytics-service-deployment.yaml
 - analytics-service-service.yaml
+- blog-service-deployment.yaml
+- blog-service-service.yaml
+- configmap.yaml
+- secret.yaml
 
 # 🔥 최신 문법: labels 필드 (올바른 사용)
 labels:

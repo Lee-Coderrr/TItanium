@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blog-service-deployment
+  labels:
+    app: blog-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blog-service
+  template:
+    metadata:
+      annotations:
+        checksum/config: "{{ .Checksum }}"
+      labels:
+        app: blog-service
+    spec:
+      containers:
+      - name: blog-service-container
+        image: dongju101/titanium-blog-service # skaffold.yamlで定義されるイメージ名
+        ports:
+        - containerPort: 8005
+          name: http
+        envFrom:
+        - configMapRef:
+            name: app-config
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http

@@ -1,9 +1,10 @@
 # user-service/user_service.py (수정 후)
 import aiohttp
 import logging
+import random
 from aiohttp import web
-from database_service import UserServiceDatabase
 from cache_service import CacheService
+from database_service import UserServiceDatabase
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('UserService')
@@ -52,15 +53,23 @@ async def handle_health(request: web.Request) -> web.Response:
         return web.json_response(status, status=503)
 
 async def handle_stats(request: web.Request) -> web.Response:
-    """서비스 및 데이터베이스 상태 통계를 반환합니다."""
+    """[ROLLBACK] 서비스 및 의존성(DB, Cache) 상태 통계를 다시 반환합니다."""
     db_ok = await db.health_check()
+    cache_ok = await cache.ping()
+
+    # 캐시 히트율을 시뮬레이션합니다.
+    simulated_hit_rate = random.uniform(85.0, 98.0) if cache_ok else 0.0
+
     stats_data = {
         "user_service": {
             "service_status": "online"
         },
-        # ✅ 데이터베이스 상태를 포함시켜 API 게이트웨이가 사용할 수 있도록 합니다.
         "database": {
             "status": "healthy" if db_ok else "unhealthy"
+        },
+        "cache": {
+            "status": "healthy" if cache_ok else "unhealthy",
+            "hit_ratio": round(simulated_hit_rate, 2)
         }
     }
     return web.json_response(stats_data)

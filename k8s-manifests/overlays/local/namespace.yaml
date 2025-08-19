@@ -16,7 +16,7 @@ metadata:
     # 비용 및 관리 레이블
     titanium.io/cost-center: development
     titanium.io/team: development-team
-    titanium.io/monitoring: disabled
+    titanium.io/monitoring: "disabled"
     titanium.io/backup: disabled
 
   annotations:

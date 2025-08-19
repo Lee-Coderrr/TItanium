@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/name: titanium
     app.kubernetes.io/component: redis
 spec:
-  replicas: 1  # Redis는 단일 인스턴스로 운영 (overlay에서 클러스터 모드 변경 가능)
+  replicas: 1
   selector:
     matchLabels:
       app: redis
@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name: redis-container
-        image: redis:7-alpine  # 안정적인 버전 사용
+        image: redis:7-alpine
         ports:
         - containerPort: 6379
           name: redis
@@ -33,15 +33,9 @@ spec:
           value: "16"
         command:
         - redis-server
-        - --appendonly
+        - "--appendonly"
         - "yes"
-        - --save
-        - "900 1"
-        - --save
-        - "300 10"
-        - --save
-        - "60 10000"
-        resources:  # overlay에서 오버라이드
+        resources:
           requests:
             memory: "128Mi"
             cpu: "100m"
@@ -70,14 +64,10 @@ spec:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
           runAsUser: 999  # redis user
-          readOnlyRootFilesystem: false  # Redis는 데이터 쓰기 필요
+          readOnlyRootFilesystem: false
         volumeMounts:
         - name: redis-data
           mountPath: /data
-        - name: redis-config
-          mountPath: /usr/local/etc/redis
       volumes:
       - name: redis-data
-        emptyDir: {}  # overlay에서 PVC로 변경 가능
-      - name: redis-config
         emptyDir: {}

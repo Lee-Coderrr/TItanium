@@ -51,13 +51,16 @@ class ReverseProxy:
         self.request_timestamps.append(time.time())
         path = request.path
 
+        if path == '/stats':
+            return await self.handle_aggregate_stats(request)
+
         if path == '/lb-health':
             return await self.handle_lb_health(request)
 
         if path == '/lb-stats':
             return await self.get_proxy_stats(request)
 
-        api_paths = ('/health', '/stats', '/login', '/profile', '/cache', '/logout', '/admin')
+        api_paths = ('/health', '/login', '/profile', '/cache', '/logout', '/admin', '/blog', '/api')
         if path.startswith(api_paths):
             if self.health_checker.is_healthy:
                 return await self.proxy_request(config.API_GATEWAY_URL, request)
@@ -89,6 +92,44 @@ class ReverseProxy:
             self.failed_requests += 1
             self.logger.error(f"Proxy request to {target_url} failed: {e}")
             return web.Response(status=502, text="Bad Gateway")
+
+    async def handle_aggregate_stats(self, request: web.Request) -> web.Response:
+        """API 게이트웨이로부터 백엔드 통계를 받고, 자신의 통계를 합쳐 반환합니다."""
+        try:
+            # 1. API 게이트웨이에 백엔드 통계를 요청합니다.
+            async with self.session.get(f"{config.API_GATEWAY_URL}/stats") as response:
+                if response.status != 200:
+                    return web.json_response({"error": "Failed to fetch stats from API Gateway"},
+                                             status=response.status)
+                backend_stats = await response.json()
+
+            # 2. 자신의 통계 데이터를 가져옵니다.
+            lb_stats = self._get_proxy_stats_dict()
+
+            # 3. 두 통계 데이터를 병합합니다.
+            combined_stats = {**backend_stats, **lb_stats}
+            return web.json_response(combined_stats)
+
+        except Exception as e:
+            self.logger.error(f"Failed to aggregate all stats: {e}")
+            return web.json_response({"error": "Internal error during stats aggregation"}, status=500)
+
+    def _get_proxy_stats_dict(self) -> dict:
+        """내부 로직에서 사용할 수 있도록 통계 정보를 딕셔너리로 반환합니다."""
+        now = time.time()
+        rps = sum(1 for ts in self.request_timestamps if now - ts <= 10) / 10.0
+        success_rate = ((self.total_requests - self.failed_requests) / max(self.total_requests, 1)) * 100
+        avg_response_time_ms = (sum(self.api_response_times) / len(
+            self.api_response_times)) * 1000 if self.api_response_times else 0
+        stats = {
+            'load-balancer': {'total_requests': self.total_requests, 'success_rate': round(success_rate, 2),
+                              'requests_per_second': round(rps, 2),
+                              'avg_response_time_ms': round(avg_response_time_ms, 2)},
+            # health_check 정보는 이제 Prometheus가 담당하므로 제거하거나 단순화할 수 있습니다.
+            'health_check': {'api_gateway_healthy': self.health_checker.is_healthy},
+            'timestamp': datetime.now().isoformat()
+        }
+        return stats
 
     async def get_proxy_stats(self, request: web.Request) -> web.Response:
         now = time.time()

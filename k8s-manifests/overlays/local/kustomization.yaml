@@ -1,40 +1,18 @@
+# TItanium/k8s-manifests/overlays/local/kustomization.yaml
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-metadata:
-  name: titanium-local
-  annotations:
-    titanium.io/environment: local
-    titanium.io/purpose: development
-    titanium.io/maintainer: development-team
-
-# 🔥 namespace.yaml 추가
+# 1. 사용할 base와 로컬 환경 전용 리소스(네임스페이스 등)를 지정합니다.
 resources:
 - ../../base
-- namespace.yaml              # ← Namespace 리소스 추가
+- namespace.yaml # 로컬용 네임스페이스 정의 파일
 
-# 환경별 labels
-labels:
-- pairs:
-    environment: local
-    tier: development
-    titanium.io/cost-center: development
-    titanium.io/debug-mode: "true"
-  includeSelectors: false
-  includeTemplates: true
-
-# 환경별 annotations
-commonAnnotations:
-  titanium.io/debug-enabled: "true"
-  titanium.io/resource-profile: minimal
-  titanium.io/monitoring: disabled
-  dev.titanium.io/hot-reload: "true"
-
+# 2. 로컬 환경의 모든 리소스에 공통적으로 적용될 접두사와 네임스페이스를 지정합니다.
 namePrefix: local-
-nameSuffix: -dev
 namespace: titanium-local
 
-# 로컬 개발용 낮은 replica 설정
+# 3. 로컬 환경에서는 모든 서비스의 복제본(replica) 수를 1로 설정합니다.
 replicas:
 - name: api-gateway-deployment
   count: 1
@@ -48,105 +26,52 @@ replicas:
   count: 1
 - name: redis-deployment
   count: 1
+- name: blog-service-deployment
+  count: 1
+- name: analytics-service-deployment
+  count: 1
 
-# 🔥 (리팩토링) 로컬 개발용 :dev 이미지 태그 사용
-images:
-- name: dongju101/titanium-api
-  newTag: dev
-- name: dongju101/titanium-auth-service
-  newTag: dev
-- name: dongju101/titanium-ui
-  newTag: dev
-- name: dongju101/titanium-lb
-  newTag: dev
-- name: dongju101/titanium-user-service
-  newTag: dev
-- name: redis
-  newTag: 7-alpine # redis는 공식 이미지를 그대로 사용
-
-# 로컬 환경용 ConfigMap 설정
+# 4. 로컬 환경에 맞는 ConfigMap 값을 설정합니다.
 configMapGenerator:
 - name: app-config
-  behavior: merge
+  behavior: merge # base의 내용과 병합
   literals:
-  - LOAD_BALANCER_URL=http://local-load-balancer-service-dev:7100
-  - API_GATEWAY_URL=http://local-api-gateway-service-dev:8000
-  - DASHBOARD_UI_URL=http://local-dashboard-ui-service-dev:80
-  - USER_SERVICE_URL=http://local-user-service-dev:8001
-  - AUTH_SERVICE_URL=http://local-auth-service-dev:8002
   - ENVIRONMENT=local
   - LOG_LEVEL=DEBUG
-  - LOG_FORMAT=pretty
-  - DEBUG_MODE=true
-  - METRICS_ENABLED=false
-  - TRACING_ENABLED=false
   - CORS_ALLOWED_ORIGINS=*
-  - RATE_LIMIT_ENABLED=false
-  - PROMETHEUS_ENABLED=false
-  - JAEGER_ENABLED=false
-  - HEALTH_CHECK_INTERVAL=60
-  - REDIS_TIMEOUT=10000
-  - TOKEN_EXPIRY=7200
-  - REFRESH_TOKEN_EXPIRY=172800
+  - API_GATEWAY_URL=http://local-api-gateway-service:8000
+  - USER_SERVICE_URL=http://local-user-service:8001
+  - AUTH_SERVICE_URL=http://local-auth-service:8002
+  - BLOG_SERVICE_URL=http://local-blog-service:8005
+  - REDIS_HOST=local-redis-service
+  - DASHBOARD_UI_URL=http://local-dashboard-ui-service:80
 
-# 로컬 환경용 Secret
-secretGenerator:
-- name: app-secrets
-  behavior: merge
-  literals:
-  - INTERNAL_API_SECRET=bG9jYWwtZGV2LXNlY3JldC1rZXktMjAyNA==
-  - JWT_SECRET_KEY=bG9jYWwtand0LXNlY3JldC1mb3ItZGV2ZWxvcG1lbnQ=
-  - DB_ENCRYPTION_KEY=bG9jYWwtZGIta2V5
-  - REDIS_PASSWORD=
-
+# 5. 특정 리소스의 일부 필드만 수정하는 '패치(patch)'를 적용합니다.
 patches:
-# (NodePort로 변경하는 서비스 패치는 이전과 동일)
-- target:
-    kind: Service
-    name: load-balancer-service
-  patch: |-
-    - op: replace
-      path: /spec/type
-      value: NodePort
-    - op: add
-      path: /spec/ports/0/nodePort
-      value: 30700
-- target:
-    kind: Service
-    name: api-gateway-service
-  patch: |-
-    - op: replace
-      path: /spec/type
-      value: NodePort
-    - op: add
-      path: /spec/ports/0/nodePort
-      value: 30800
+  # Load Balancer 서비스를 외부에서 접근 가능하도록 NodePort 타입으로 변경
+  - target:
+      kind: Service
+      name: load-balancer-service
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30700
+        
+  # user-service-deployment가 올바른 PVC 이름을 참조하도록 패치를 추가합니다.
+  - target:
+      kind: Deployment
+      name: user-service-deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/volumes/0/persistentVolumeClaim/claimName
+        value: local-user-service-data-pvc
 
-# 로컬 환경 최적화 패치 파일 포함
-- path: patches.yaml
-
-# 로컬 이미지를 사용하도록 ImagePullPolicy 변경
-- patch: |-
-    - op: replace
-      path: /spec/template/spec/containers/0/imagePullPolicy
-      value: IfNotPresent
-  target:
-    kind: Deployment
-    name: ".*-deployment" # 정규식을 사용하여 모든 Deployment에 적용
-
-replacements:
-- source:
-    # 🏃 소스(Source): 이름이 'redis-service'인 Service 리소스에서
-    kind: Service
-    name: redis-service
-    # 🎯 필드 경로(Field Path): 'metadata.name' 값을 가져옵니다.
-    # (Kustomize가 빌드 과정에서 'local-redis-service-dev' 라는 최종 이름을 가져옵니다)
-    fieldPath: metadata.name
-  targets:
-  - select:
-      # 🏃 타겟(Target): 'app-config'라는 이름의 ConfigMap을 선택하여
-      kind: ConfigMap
-      name: app-config
-    # 🎯 필드 경로(Field Path): 'data.REDIS_HOST' 필드에 위에서 가져온 값을 주입합니다.
-    fieldPaths:
-    - data.REDIS_HOST
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent

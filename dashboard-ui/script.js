@@ -2,7 +2,6 @@
 // 설정 (Configuration)
 // ==================================
 const config = {
-    // 상대 경로를 사용하여 어떤 환경에서든 동일하게 동작하도록 합니다.
     apiEndpoint: '',
     refreshInterval: 2000,
     maxChartPoints: 30,
@@ -12,7 +11,6 @@ const config = {
 
 // ==================================
 // 이벤트 버스 (Event Bus)
-// - 모듈 간의 통신을 담당합니다.
 // ==================================
 const eventBus = {
     events: {},
@@ -31,7 +29,6 @@ const eventBus = {
 
 // ==================================
 // API 서비스 모듈 (apiService)
-// - 백엔드와의 모든 통신을 책임집니다.
 // ==================================
 const apiService = {
     monitoringEnabled: true,
@@ -39,27 +36,20 @@ const apiService = {
     async fetchAllStats() {
         if (!this.monitoringEnabled) return;
         try {
-            // [수정!] 이제 API 게이트웨이의 통합 /stats 엔드포인트 하나만 호출합니다.
             const response = await fetch(config.apiEndpoint + '/stats');
             if (!response.ok) {
                throw new Error("Backend communication error");
             }
             const combinedStats = await response.json();
-            // 모든 정보가 담긴 단일 stats 객체를 전달합니다.
             eventBus.publish('statsUpdated', { stats: combinedStats, isFetchSuccess: true });
         } catch (error) {
             eventBus.publish('fetchError', { error, isFetchSuccess: false });
         }
     },
     async resetAllStats() {
-        try {
-            // 참고: 리셋 기능은 현재 아키텍처에서 더 복잡한 구현이 필요할 수 있습니다.
-            await fetch(config.apiEndpoint + '/reset-stats', { method: 'POST' });
-            return true;
-        } catch (error) {
-            console.error('Failed to reset stats:', error);
-            return false;
-        }
+        // 이 기능은 현재 구현되지 않았습니다.
+        console.warn('Reset stats functionality is not implemented in the backend.');
+        return Promise.resolve(true);
     },
     start() {
         this.monitoringEnabled = true;
@@ -95,7 +85,6 @@ const chartModule = {
             data: { labels: [], datasets: [{ data: [], backgroundColor: '#3b82f6' }] },
             options: commonOptions
         });
-        // [수정!] 단일 stats 객체를 받도록 수정합니다.
         eventBus.subscribe('statsUpdated', ({ stats }) => this.update(stats));
         eventBus.subscribe('reset', () => this.reset());
     },
@@ -111,7 +100,6 @@ const chartModule = {
             }
             chart.update('none');
         };
-        // API 게이트웨이가 취합한 데이터 구조에 맞게 접근합니다.
         updateChart(this.charts.responseTime, stats?.['load-balancer']?.avg_response_time_ms || 0);
         updateChart(this.charts.throughput, stats?.['load-balancer']?.requests_per_second || 0);
     },
@@ -131,47 +119,68 @@ const chartModule = {
 // ==================================
 const statusModule = {
     elements: {},
+    serviceDisplayNames: {
+        'api-gateway': 'API Gateway', 'auth': 'Auth Service',
+        'user_service': 'User Service', 'blog_service': 'Blog Service',
+        'database': 'Database', 'cache': 'Cache' // [추가] 캐시
+    },
     init() {
         this.elements = {
-            overallStatus: document.getElementById('overall-status'), activeServices: document.getElementById('active-services'),
-            totalRequests: document.getElementById('total-requests'), successRate: document.getElementById('success-rate'),
-            currentRps: document.getElementById('current-rps'), avgResponseTime: document.getElementById('avg-response-time'),
-            errorRate: document.getElementById('error-rate'), dbStatus: document.getElementById('db-status'),
-            cacheHitRate: document.getElementById('cache-hit-rate'), activeSessions: document.getElementById('active-sessions'),
+            // 전체 상태
+            overallStatus: document.getElementById('overall-status'),
+            activeServices: document.getElementById('active-services'),
+            totalRequests: document.getElementById('total-requests'),
+            successRate: document.getElementById('success-rate'),
             serverList: document.getElementById('server-list'),
+
+            // [수정] 네트워크 통계 요소들을 모두 가져옵니다.
+            currentRps: document.getElementById('current-rps'),
+            avgResponseTime: document.getElementById('avg-response-time'),
+            errorRate: document.getElementById('error-rate'),
+
+            // [수정] 데이터 저장소 상태 요소들을 모두 가져옵니다.
+            dbStatus: document.getElementById('db-status'),
+            cacheHitRate: document.getElementById('cache-hit-rate'),
+            activeSessions: document.getElementById('active-sessions'),
         };
-        // [수정!] 단일 stats 객체를 받도록 수정합니다.
         eventBus.subscribe('statsUpdated', ({ stats, isFetchSuccess }) => this.update(stats, isFetchSuccess));
         eventBus.subscribe('fetchError', ({ isFetchSuccess }) => this.update(null, isFetchSuccess));
+
+        this.setInitialState();
+    },
+    setInitialState() {
+        this.elements.overallStatus.textContent = 'CONNECTING...';
+        this.elements.overallStatus.className = 'metric-value metric-warning';
+        this.elements.totalRequests.textContent = '0';
+        this.elements.successRate.textContent = '0.0%';
+        this.elements.activeServices.textContent = '0/0';
+        this.elements.currentRps.textContent = '0.0';
+        this.elements.avgResponseTime.textContent = '0ms';
+        this.elements.errorRate.textContent = '0.0%';
+        this.elements.dbStatus.textContent = 'N/A';
+        this.elements.cacheHitRate.textContent = '0.0%';
+        this.elements.activeSessions.textContent = '0';
+        this.elements.serverList.innerHTML = '';
     },
     update(stats, isFetchSuccess) {
-        if (!isFetchSuccess) {
+        if (!isFetchSuccess || !stats) {
             this.elements.overallStatus.textContent = 'DISCONNECTED';
             this.elements.overallStatus.className = 'metric-value metric-danger';
             this.updateServerList(null, false);
             return;
         }
-        // API 게이트웨이가 취합한 데이터 구조에 맞게 접근합니다.
+
         const lbData = stats['load-balancer'];
-        const healthData = stats.health_check;
+        const serviceStates = this.updateServerList(stats, true);
+        const healthyCount = serviceStates.filter(s => s.isHealthy).length;
+        const totalCount = serviceStates.length;
+
+        // 전체 상태 업데이트
         this.elements.totalRequests.textContent = (lbData?.total_requests || 0).toLocaleString();
         this.elements.successRate.textContent = `${(lbData?.success_rate || 0).toFixed(1)}%`;
-        this.elements.currentRps.textContent = (lbData?.requests_per_second || 0).toFixed(1);
-        this.elements.avgResponseTime.textContent = `${(lbData?.avg_response_time_ms || 0).toFixed(1)}ms`;
-        this.elements.errorRate.textContent = `${(100 - (lbData?.success_rate || 100)).toFixed(1)}%`;
+        this.elements.activeServices.textContent = `${healthyCount}/${totalCount}`;
 
-        const healthy = (healthData?.healthy_servers || 0) + 1; // LB 포함
-        const total = (healthData?.total_servers || 0) + 1; // LB 포함
-        this.elements.activeServices.textContent = `${healthy}/${total}`;
-
-        const dbIsHealthy = stats?.database?.status === 'healthy';
-        this.elements.dbStatus.textContent = dbIsHealthy ? 'ONLINE' : 'OFFLINE';
-        this.elements.dbStatus.className = `metric-value ${dbIsHealthy ? 'metric-good' : 'metric-danger'}`;
-
-        this.elements.cacheHitRate.textContent = `${(stats?.cache?.hit_ratio || 0).toFixed(1)}%`;
-        this.elements.activeSessions.textContent = stats?.auth?.active_session_count || 0;
-
-        if (healthy < total) {
+        if (healthyCount < totalCount) {
             this.elements.overallStatus.textContent = 'DEGRADED';
             this.elements.overallStatus.className = 'metric-value metric-danger';
         } else if ((lbData?.success_rate || 100) < 95) {
@@ -181,28 +190,44 @@ const statusModule = {
             this.elements.overallStatus.textContent = 'HEALTHY';
             this.elements.overallStatus.className = 'metric-value metric-good';
         }
-        this.updateServerList(healthData?.server_details, true);
-    },
-    updateServerList(serverDetails, isLbHealthy) {
-        const serverListElement = this.elements.serverList;
-        if (!serverListElement) return;
-        serverListElement.innerHTML = '';
-        const lbItem = document.createElement('li');
-        lbItem.className = 'server-item';
-        const lbStatusClass = isLbHealthy ? 'status-healthy' : 'status-error';
-        lbItem.innerHTML = `<span><span class="status-indicator ${lbStatusClass}"></span>Load Balancer</span><span>${isLbHealthy ? 'Online' : 'Offline'}</span>`;
-        serverListElement.appendChild(lbItem);
 
-        if (!serverDetails) return;
-        Object.entries(serverDetails).forEach(([server, stats]) => {
+        this.elements.currentRps.textContent = (lbData?.requests_per_second || 0).toFixed(1);
+        this.elements.avgResponseTime.textContent = `${(lbData?.avg_response_time_ms || 0).toFixed(1)}ms`;
+        this.elements.errorRate.textContent = `${(100 - (lbData?.success_rate || 100)).toFixed(1)}%`;
+
+        const dbIsHealthy = stats?.database?.status === 'healthy';
+        this.elements.dbStatus.textContent = dbIsHealthy ? 'ONLINE' : 'OFFLINE';
+        this.elements.dbStatus.className = `metric-value ${dbIsHealthy ? 'metric-good' : 'metric-danger'}`;
+        this.elements.cacheHitRate.textContent = `${(stats?.cache?.hit_ratio || 0).toFixed(1)}%`;
+        this.elements.activeSessions.textContent = stats?.auth?.active_session_count || 0;
+    },
+    updateServerList(stats, isLbHealthy) {
+        // ... (이전과 동일한 리팩터링된 함수) ...
+        const serverListElement = this.elements.serverList;
+        if (!serverListElement) return [];
+        serverListElement.innerHTML = '';
+
+        const allServiceStates = [];
+        allServiceStates.push({ name: 'Load Balancer', isHealthy: isLbHealthy });
+
+        if (stats) {
+            for (const key in this.serviceDisplayNames) {
+                if (stats[key]) {
+                    const serviceData = stats[key];
+                    const isHealthy = serviceData.status === 'healthy' || serviceData.service_status === 'online';
+                    allServiceStates.push({ name: this.serviceDisplayNames[key], isHealthy: isHealthy });
+                }
+            }
+        }
+        allServiceStates.forEach(service => {
             const li = document.createElement('li');
             li.className = 'server-item';
-            const isHealthy = stats.healthy;
-            const statusClass = isHealthy ? 'status-healthy' : 'status-error';
-            const responseTime = stats.avg_response_time ? `${stats.avg_response_time.toFixed(1)}ms` : 'N/A';
-            li.innerHTML = `<span><span class="status-indicator ${statusClass}"></span>API Gateway</span><span>${isHealthy ? responseTime : 'Offline'}</span>`;
+            const statusClass = service.isHealthy ? 'status-healthy' : 'status-error';
+            li.innerHTML = `<span><span class="status-indicator ${statusClass}"></span>${service.name}</span><span>${service.isHealthy ? 'Online' : 'Offline'}</span>`;
             serverListElement.appendChild(li);
         });
+
+        return allServiceStates;
     }
 };
 
@@ -211,16 +236,21 @@ const statusModule = {
 // ==================================
 const alertModule = {
     init() {
-        // [수정!] 단일 stats 객체를 받도록 수정합니다.
         eventBus.subscribe('statsUpdated', ({ stats }) => this.checkAlerts(stats));
     },
     checkAlerts(stats) {
-        const lbData = stats?.load_balancer;
-        const healthData = stats?.health_check;
-        if (!lbData || !healthData) return;
+        const lbData = stats?.['load-balancer'];
+        if (!lbData) return;
+
         if (lbData.success_rate < 95) this.addAlert('warning', `Success rate is low: ${lbData.success_rate.toFixed(1)}%`);
         if (lbData.avg_response_time_ms > 500) this.addAlert('warning', `High response time: ${lbData.avg_response_time_ms.toFixed(1)}ms`);
-        if (healthData.healthy_servers < healthData.total_servers) this.addAlert('error', `${healthData.total_servers - healthData.healthy_servers} backend server(s) are down.`);
+
+        // 전체 서비스 상태를 확인하여 다운된 서비스 알림
+        const serviceStates = statusModule.updateServerList(stats, true);
+        const downServices = serviceStates.filter(s => !s.isHealthy);
+        if (downServices.length > 0) {
+            this.addAlert('error', `${downServices.map(s => s.name).join(', ')} service(s) are down.`);
+        }
     },
     addAlert(type, message) {
         const container = document.getElementById('alerts-container');
@@ -228,7 +258,7 @@ const alertModule = {
         const alertExists = [...container.children].some(child => child.textContent.includes(message));
         if (alertExists) return;
         const alert = document.createElement('li');
-        alert.className = `alert-box ${type}`;
+        alert.className = `alert-box alert-${type}`;
         alert.innerHTML = `<strong>${type.toUpperCase()}:</strong> ${message}`;
         container.insertBefore(alert, container.firstChild);
         if (container.children.length > config.maxAlerts) {

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSA 블로그</title>
+    <link rel="stylesheet" href="/blog/static/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1><a href="#/">MSA 기반 기술 블로그</a></h1>
+            <nav>
+                <a href="#/">홈</a>
+                <span id="auth-status">
+                    <a href="#/login">로그인</a>
+                </span>
+            </nav>
+        </header>
+        <main id="main-content">
+            </main>
+        <footer>
+            <p>&copy; 2025 Titanium Systems. 이 블로그는 MSA의 일부로 실행 중입니다.</p>
+        </footer>
+    </div>
+
+    <template id="login-template">
+        <div class="view-container">
+            <h2>로그인</h2>
+            <form id="login-form" class="form-container">
+                <input type="text" id="username" placeholder="사용자 이름" required>
+                <input type="password" id="password" placeholder="비밀번호" required>
+                <button type="submit">로그인</button>
+                <button type="button" id="go-to-signup" class="secondary-btn">회원가입</button>
+                <p id="login-error" class="error-message"></p>
+            </form>
+        </div>
+    </template>
+
+    <template id="signup-template">
+        <div class="view-container">
+            <h2>회원가입</h2>
+            <form id="signup-form" class="form-container">
+                <input type="text" id="signup-username" placeholder="사용할 아이디" required>
+                <input type="password" id="signup-password" placeholder="사용할 비밀번호" required>
+                <button type="submit">계정 생성</button>
+                <button type="button" id="go-to-login" class="secondary-btn">로그인 페이지로</button>
+                <p id="signup-error" class="error-message"></p>
+            </form>
+        </div>
+    </template>
+
+    <template id="post-list-template">
+        <div class="view-container">
+            <h2>최신 글</h2>
+            <ul id="posts-container" class="post-list">
+                </ul>
+        </div>
+    </template>
+
+    <template id="post-detail-template">
+        <div id="post-detail-container" class="view-container post-detail">
+            </div>
+    </template>
+
+    <script src="/blog/static/js/app.js"></script>
+</body>
+</html>

@@ -45,7 +45,6 @@ async def handle_health(request: web.Request) -> web.Response:
 
 async def handle_stats(request: web.Request) -> web.Response:
     """서비스의 간단한 통계를 반환합니다."""
-    # 현재는 활성 세션을 추적하지 않으므로 기본값을 반환합니다.
     stats_data = {
         "auth": {
             "service_status": "online",
